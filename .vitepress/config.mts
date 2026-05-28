@@ -1,15 +1,49 @@
-import { defineConfig } from "vitepress";
+import { defineConfig, type HeadConfig } from "vitepress";
 import sidebar from "./sidebar.json";
 
+const SITE_URL = "https://cq0206.github.io/ai-engineering-from-scratch";
+const SITE_TITLE = "AI 工程从零开始";
+const SITE_DESC = "473 课时系统化 AI 工程课程 — 从数学基础到 Agent 生产部署";
+
 export default defineConfig({
-  title: "AI 工程从零开始",
-  description: "473 课时系统化 AI 工程课程 — 从数学基础到 Agent 生产部署",
+  title: SITE_TITLE,
+  description: SITE_DESC,
   base: "/ai-engineering-from-scratch/",
   lang: "zh-CN",
 
+  sitemap: {
+    hostname: "https://cq0206.github.io",
+    transformItems(items) {
+      return items.map(item => ({
+        ...item,
+        url: `ai-engineering-from-scratch/${item.url}`,
+      }));
+    },
+  },
+
   head: [
     ["link", { rel: "icon", type: "image/svg+xml", href: "/ai-engineering-from-scratch/logo.svg" }],
+    ["meta", { property: "og:site_name", content: SITE_TITLE }],
+    ["meta", { property: "og:locale", content: "zh_CN" }],
+    ["meta", { name: "twitter:card", content: "summary" }],
   ],
+
+  transformHead({ pageData }) {
+    const head: HeadConfig[] = [];
+    const title = pageData.title || SITE_TITLE;
+    const desc = pageData.description || SITE_DESC;
+    const url = `${SITE_URL}/${pageData.relativePath.replace(/\.md$/, ".html")}`;
+
+    head.push(["meta", { property: "og:title", content: title }]);
+    head.push(["meta", { property: "og:description", content: desc }]);
+    head.push(["meta", { property: "og:url", content: url }]);
+    head.push(["meta", { property: "og:type", content: "article" }]);
+    head.push(["meta", { name: "twitter:title", content: title }]);
+    head.push(["meta", { name: "twitter:description", content: desc }]);
+    head.push(["link", { rel: "canonical", href: url }]);
+
+    return head;
+  },
 
   themeConfig: {
     nav: [
