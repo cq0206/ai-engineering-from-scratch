@@ -3,8 +3,8 @@
 > 模型并不知道工作会在何处结束。范围契约（scope contract）是一个按任务划分的文件，用来说明工作从哪里开始、在哪里结束，以及如果范围外溢该如何回滚。它把“保持在范围内”从一种愿望变成了一项可检查的约束。
 
 **类型：** 构建
-**语言：** Python（stdlib）
-**前置条件：** Phase 14 · 32（最小工作台）, Phase 14 · 33（作为约束的规则）
+**语言：** Python（标准库，stdlib）
+**前置条件：** 第 14 阶段 · 32（最小工作台）, 第 14 阶段 · 33（作为约束的规则）
 **时间：** ~50 分钟
 
 ## 学习目标
@@ -131,6 +131,6 @@ python3 code/main.py
 - [OpenCode permission globs](https://opencode.ai/docs/agents/) — 细粒度、按权限划分的范围控制
 - [Knostic, AI Coding Agent Security: Threat Models and Protection Strategies](https://www.knostic.ai/blog/ai-coding-agent-security) — 将范围视为最小权限的一部分
 - [Augment Code, AI Spec Template](https://www.augmentcode.com/guides/ai-spec-template) — 三层边界体系（必须 / 先询问 / 禁止）
-- Phase 14 · 27 —— 与范围锁定配套的提示注入防御
-- Phase 14 · 33 —— 这份契约按任务进行特化的规则集
-- Phase 14 · 38 —— 检查器汇报结果所进入的验证闸门
+- 第 14 阶段 · 27 —— 与范围锁定配套的提示注入防御
+- 第 14 阶段 · 33 —— 这份契约按任务进行特化的规则集
+- 第 14 阶段 · 38 —— 检查器汇报结果所进入的验证闸门

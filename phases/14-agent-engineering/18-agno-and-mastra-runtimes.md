@@ -4,7 +4,7 @@
 
 **类型：** 学习
 **语言：** Python、TypeScript
-**前置条件：** Phase 14 · 01（Agent Loop）、Phase 14 · 13（LangGraph）
+**前置条件：** 第 14 阶段 · 01（智能体循环）、第 14 阶段 · 13（LangGraph）
 **耗时：** ~45 分钟
 
 ## 学习目标
@@ -86,7 +86,7 @@ python3 code/main.py
 
 ## 练习
 
-1. 阅读 Agno 文档。把 stdlib 的 ReAct 循环（第 01 课）迁移到 Agno。有哪些东西消失了？哪些保留了？
+1. 阅读 Agno 文档。把标准库版（stdlib）的 ReAct 循环（第 01 课）迁移到 Agno。有哪些东西消失了？哪些保留了？
 2. 阅读 Mastra 文档。把同一个循环迁移到 Mastra。工具类型化发生了什么变化（Zod 与无类型）？
 3. 做基准测试：在你的技术栈上测量智能体实例化延迟。Agno 的 2μs 对你的工作负载真的重要吗？
 4. 设计一次迁移：如果你现在在 Python 中运行的是 CrewAI，迁移到 Agno 会破坏什么？

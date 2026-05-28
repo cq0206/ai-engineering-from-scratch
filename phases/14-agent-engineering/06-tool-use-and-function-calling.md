@@ -9,9 +9,9 @@
 
 ## 学习目标
 
-- 解释 Toolformer 的自监督训练信号：只有当执行结果降低下一个令牌损失（next-token loss）时，才保留工具标注。
+- 解释 Toolformer 的自监督训练信号：只有当执行结果降低下一令牌损失（next-token loss）时，才保留工具标注。
 - 说出 BFCL V4 的五类评估维度，以及每一类衡量的内容。
-- 仅用标准库实现一个带 schema（模式）校验、参数强制转换和执行沙箱化的工具注册表。
+- 仅用标准库实现一个带模式（schema）校验、参数强制转换和执行沙箱化的工具注册表。
 - 诊断 2026 年的三个开放问题：长时程工具链、动态决策与记忆。
 
 ## 问题
@@ -24,7 +24,7 @@ Toolformer 建立了基线：模型可以通过自监督学习何时调用工具
 
 ### Toolformer（Schick 等，NeurIPS 2023）
 
-核心思路：让模型给自己的预训练语料打上候选 API 调用标注。对每个候选标注，先执行它。只有当引入该工具结果能降低下一个令牌的预测损失时，才保留这条标注。然后用筛选后的语料进行微调。
+核心思路：让模型给自己的预训练语料打上候选 API 调用标注。对每个候选标注，先执行它。只有当引入该工具结果能降低下一令牌损失（next-token loss）时，才保留这条标注。然后用筛选后的语料进行微调。
 
 覆盖的工具包括：计算器、问答系统、搜索引擎、翻译器、日历。这个自监督信号完全基于工具是否有助于预测文本——没有人工标注。
 
@@ -101,7 +101,7 @@ python3 code/main.py
 
 ## 使用它
 
-每个提供商都有自己的工具模式——Anthropic、OpenAI、Gemini、Bedrock。如果你需要多提供商支持，就使用一层翻译层（如 OpenAI Agents SDK、Vercel AI SDK、LangChain 的工具适配层）。BFCL 是参考基准——如果工具使用是产品核心功能，在上线前先用它测你的智能体。
+每个提供商都有自己的工具模式——Anthropic、OpenAI、Gemini、Bedrock。如果你需要多提供商支持，就使用一层翻译层（如 OpenAI Agents SDK、Vercel AI SDK、LangChain 的工具适配层）。BFCL 是参考基准——如果工具使用是产品核心功能，在上线前先用它测试你的智能体。
 
 ## 交付上线
 
@@ -132,5 +132,5 @@ python3 code/main.py
 
 - [Schick et al., Toolformer (arXiv:2302.04761)](https://arxiv.org/abs/2302.04761) —— 自监督工具标注
 - [Berkeley Function Calling Leaderboard (V4)](https://gorilla.cs.berkeley.edu/leaderboard.html) —— 2026 评估基准
-- [Anthropic, Tool use documentation](https://platform.claude.com/docs/en/agent-sdk/overview) —— Claude Agent SDK 中的生产级工具 schema
+- [Anthropic, Tool use documentation](https://platform.claude.com/docs/en/agent-sdk/overview) —— Claude Agent SDK 中的生产级工具模式（schema）
 - [OpenAI Agents SDK docs](https://openai.github.io/openai-agents-python/) —— function tool 类型与 Guardrails

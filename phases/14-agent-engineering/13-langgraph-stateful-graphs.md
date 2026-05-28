@@ -85,7 +85,7 @@ python3 code/main.py
 
 - **LangGraph** —— 参考实现，具备生产可用性。可以使用 `create_react_agent`、`create_supervisor`，或自己构建图。
 - **AutoGen v0.4**（第 14 课）—— 适用于高并发场景的演员模型替代方案。
-- **Claude Agent SDK**（第 17 课）—— 带内置会话存储的托管式运行外壳（harness）。
+- **Claude Agent SDK**（第 17 课）—— 带内置会话存储的托管式运行支架（harness）。
 - **自定义实现** —— 当你需要精确控制状态形状或检查点后端时。
 
 ## 交付

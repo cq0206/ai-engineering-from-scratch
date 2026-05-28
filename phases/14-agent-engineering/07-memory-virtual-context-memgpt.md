@@ -4,7 +4,7 @@
 
 **Type:** Build
 **Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 01 (Agent Loop), Phase 14 · 06 (Tool Use)
+**Prerequisites:** 第 14 阶段 · 01 (Agent Loop), 第 14 阶段 · 06 (Tool Use)
 **Time:** ~75 minutes
 
 ## Learning Objectives

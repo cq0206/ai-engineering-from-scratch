@@ -32,7 +32,7 @@
 | 状态 | 当前任务、已触达文件、阻塞项、下一步动作 | 每次会话都从零开始 |
 | 范围 | 允许文件、禁止文件、验收标准 | 修改渗漏到无关代码 |
 | 反馈 | 被捕获并写回循环的真实命令输出 | 遇到 400 还宣称成功 |
-| 验证 | 测试、lint 检查、冒烟运行、范围检查 | “看起来不错”一路进 main |
+| 验证 | 测试、lint 检查、冒烟运行、范围检查 | “看起来不错”一路进 main 分支 |
 | 评审 | 由不同角色执行的第二遍检查 | 构建者自己给自己批作业 |
 | 交接 | 改了什么、为什么改、还剩什么 | 下一次会话又把一切重新发现一遍 |
 
@@ -99,8 +99,8 @@ flowchart LR
 | 计划 / 执行 / 验证（PEV） | 三个工作进程，每个角色一个，通过状态和阶段间队列通信 |
 | 运行支架-计算分离（OpenAI Agents SDK，2026 年 4 月）—— 将控制平面与执行平面分开 | 只是对控制平面 / 数据平面的重新表述。这个概念比“智能体”这个标签早几十年 |
 | Open Agent Passport（OAP，2026 年 3 月）—— 在执行前，按声明式策略对每次工具调用进行签名和审计 | 由动作前工作进程执行的授权策略，加上一条已签名的审计队列 |
-| Guides and Sensors（Birgitta Böckeler / Thoughtworks）—— 前馈规则 + 反馈可观测性 | 授权策略 + 验证函数 + 可观测性追踪 |
-| Progressive compaction，5-stage（Claude Code 逆向工程，2026 年 4 月） | 一个状态管理工作进程，像定时任务一样定期处理会话持久化，把它维持在预算内 |
+| 前馈规则与反馈传感（Guides and Sensors，Birgitta Böckeler / Thoughtworks） | 授权策略 + 验证函数 + 可观测性追踪 |
+| 渐进压缩（Progressive compaction），五阶段（5-stage）（Claude Code 逆向工程，2026 年 4 月） | 一个状态管理工作进程，像定时任务一样定期处理会话持久化，把它维持在预算内 |
 | 钩子 / 中间件（LangChain、Claude Code）—— 拦截模型和工具调用 | 包裹在运行时调用路径周围的触发器 + 函数 |
 | Skills as Markdown with progressive disclosure（Anthropic、Flue） | 一个函数注册表，其中函数元数据会按需即时加载进上下文 |
 | Sandbox agents（Codex、Sandcastle、Vercel Sandbox） | 计算平面：具备隔离文件系统、网络与生命周期的运行时 |
@@ -198,7 +198,7 @@ python3 code/main.py
 
 带有可操作细节的实践者文章：
 
-- [Martin Fowler / Birgitta Böckeler, Harness engineering for coding agent users](https://martinfowler.com/articles/harness-engineering.html) — guides（前馈）+ sensors（反馈）；最清晰的控制论框架
+- [Martin Fowler / Birgitta Böckeler, Harness engineering for coding agent users](https://martinfowler.com/articles/harness-engineering.html) — 前馈规则（guides）+ 反馈传感（sensors）；最清晰的控制论框架
 - [HumanLayer, Skill Issue: Harness Engineering for Coding Agents](https://www.humanlayer.dev/blog/skill-issue-harness-engineering-for-coding-agents) — “这不是模型问题，而是配置问题”
 - [MongoDB, The Agent Harness: Why the LLM Is the Smallest Part of Your Agent System](https://www.mongodb.com/company/blog/technical/agent-harness-why-llm-is-smallest-part-of-your-agent-system) — 数据证据：Vercel 从 80% 到 100%，Harvey 准确率提升 2 倍，Terminal Bench 从前 30 名外冲到第 5 名
 - [Augment Code, Harness Engineering for AI Coding Agents](https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents) — 以约束为先的实操讲解

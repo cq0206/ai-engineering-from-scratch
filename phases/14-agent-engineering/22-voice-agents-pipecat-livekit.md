@@ -4,7 +4,7 @@
 
 **Type:** Learn
 **Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 01 (Agent Loop), Phase 14 · 12 (Workflow Patterns)
+**Prerequisites:** 第 14 阶段 · 01 (Agent Loop), 第 14 阶段 · 12 (Workflow Patterns)
 **Time:** ~60 minutes
 
 ## Learning Objectives

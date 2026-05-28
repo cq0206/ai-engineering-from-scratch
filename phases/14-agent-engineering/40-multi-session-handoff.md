@@ -3,8 +3,8 @@
 > 会话即将结束，但工作不会。交接包是一种工件，它能把“智能体工作了一小时”变成“下一个会话在第一分钟就有产出”。要有意识地构建它，而不是事后顺手补一个。
 
 **类型：** 构建
-**语言：** Python（stdlib）
-**前置条件：** Phase 14 · 34（仓库记忆）, Phase 14 · 38（验证）, Phase 14 · 39（评审）
+**语言：** Python（标准库，stdlib）
+**前置条件：** 第 14 阶段 · 34（仓库记忆）, 第 14 阶段 · 38（验证）, 第 14 阶段 · 39（评审）
 **时间：** ~50 分钟
 
 ## 学习目标
@@ -132,6 +132,6 @@ Codex CLI、Claude Code 和 OpenCode 各自提供了不同的上下文压缩（c
 - [Microsoft Agent Framework, Compaction](https://learn.microsoft.com/en-us/agent-framework/agents/conversations/compaction)
 - [OpenCode, Context Management and Compaction](https://deepwiki.com/sst/opencode/2.4-context-management-and-compaction)
 - [LangChain, Context Engineering for Agents](https://www.langchain.com/blog/context-engineering-for-agents)
-- Phase 14 · 34 —— 生成器读取的状态文件
-- Phase 14 · 38 —— 交接包指向的验证判定
-- Phase 14 · 39 —— 被打包进交接包的评审报告
+- 第 14 阶段 · 34 —— 生成器读取的状态文件
+- 第 14 阶段 · 38 —— 交接包指向的验证判定
+- 第 14 阶段 · 39 —— 被打包进交接包的评审报告

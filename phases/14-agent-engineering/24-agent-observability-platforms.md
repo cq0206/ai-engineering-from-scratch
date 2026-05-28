@@ -4,7 +4,7 @@
 
 **Type:** Learn
 **Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 23 (OTel GenAI)
+**Prerequisites:** 第 14 阶段 · 23 (OTel GenAI)
 **Time:** ~45 minutes
 
 ## Learning Objectives

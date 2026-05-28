@@ -4,7 +4,7 @@
 
 **Type:** Build
 **Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 07 (MemGPT), Phase 14 · 08 (Letta Blocks)
+**Prerequisites:** 第 14 阶段 · 07 (MemGPT), 第 14 阶段 · 08 (Letta Blocks)
 **Time:** ~75 minutes
 
 ## Learning Objectives

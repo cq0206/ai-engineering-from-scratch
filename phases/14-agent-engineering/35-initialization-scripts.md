@@ -3,8 +3,8 @@
 > 每次冷启动的会话都要付出一笔税。智能体会读取同样的文件、重复同样的探测，并再次发现同样的路径。初始化（init）脚本只支付一次这笔税，并把答案写进状态里。
 
 **类型：** 构建
-**语言：** Python（stdlib）
-**前置条件：** Phase 14 · 32（最小工作台），Phase 14 · 34（仓库记忆）
+**语言：** Python（标准库，stdlib）
+**前置条件：** 第 14 阶段 · 32（最小工作台），第 14 阶段 · 34（仓库记忆）
 **时长：** ~45 分钟
 
 ## 学习目标
@@ -54,7 +54,7 @@ flowchart TD
 
 ### 初始化与启动规则
 
-规则（Phase 14 · 33）描述的是：在行动前，什么必须为真。初始化脚本负责确保这些规则真的可被检查。没有初始化脚本的规则会退化成“多小心一点”；没有规则的初始化脚本，只是一次打磨精致的失败。
+规则（第 14 阶段 · 33）描述的是：在行动前，什么必须为真。初始化脚本负责确保这些规则真的可被检查。没有初始化脚本的规则会退化成“多小心一点”；没有规则的初始化脚本，只是一次打磨精致的失败。
 
 ## 动手构建
 
@@ -121,8 +121,8 @@ python3 code/main.py
 - [microservices.io, GenAI dev platform: guardrails](https://microservices.io/post/architecture/2026/03/09/genai-development-platform-part-1-development-guardrails.html) — 作为初始化的提交前（pre-commit）与 CI 检查
 - [Augment Code, How to Build Your AGENTS.md (2026)](https://www.augmentcode.com/guides/how-to-build-agents-md) — 对初始化脚本的预期
 - [Codex Blog, Codex CLI Context Compaction](https://codex.danielvaughan.com/2026/03/31/codex-cli-context-compaction-architecture/) — 把会话启动当作感知压缩（compaction）的初始化
-- Phase 14 · 33 — 这套脚本所支持的规则集
-- Phase 14 · 34 — 这套脚本所填充的状态文件
-- Phase 14 · 38 — 初始化脚本喂给它的验证闸门
-- Phase 14 · 40 — 消费初始化报告中最近一次已知良好提交的交接流程
+- 第 14 阶段 · 33 — 这套脚本所支持的规则集
+- 第 14 阶段 · 34 — 这套脚本所填充的状态文件
+- 第 14 阶段 · 38 — 初始化脚本喂给它的验证闸门
+- 第 14 阶段 · 40 — 消费初始化报告中最近一次已知良好提交的交接流程
 

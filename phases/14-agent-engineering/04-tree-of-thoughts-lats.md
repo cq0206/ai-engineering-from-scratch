@@ -1,4 +1,4 @@
-# Tree of Thoughts 与 LATS：审慎搜索
+# 思维树（Tree of Thoughts）与 LATS：审慎搜索
 
 > 单条思维链（chain-of-thought）轨迹没有回退空间。ToT（Yao 等，2023）把推理变成一棵树，并在每个节点上进行自评估。LATS（Zhou 等，2024）则在蒙特卡洛树搜索（Monte Carlo Tree Search, MCTS）下，把 ToT、ReAct 和 Reflexion 统一起来。Game of 24 从 4%（CoT）提升到 74%（ToT）；LATS 在 HumanEval 上达到 92.7% pass@1。
 
@@ -11,20 +11,20 @@
 
 - 把推理建模为搜索：节点是“想法（thoughts）”，边是“扩展（expansions）”，价值（value）表示“有多有前景”。
 - 仅用标准库实现一个带自评估打分的 ToT 风格 BFS 树搜索。
-- 将其扩展为一个玩具版 LATS MCTS 循环，包含选择（select）/扩展（expand）/模拟（simulate）/回传（backpropagate）。
+- 将其扩展为一个玩具版 LATS MCTS 循环，包含选择（select）/ 扩展（expand）/ 模拟（simulate）/ 回传（backpropagate）。
 - 判断何时搜索值得付出额外令牌成本（Game of 24、代码生成），何时单条轨迹就足够（简单问答）。
 
 ## 问题
 
 思维链是一条线性路径。如果第一步错了，后面的每一步都会建立在错误前提上。在 Game of 24（使用四个数字和 + − × ÷ 得到 24）任务上，GPT-4 CoT 的准确率只有 4%。模型过早选错了子表达式，之后就再也回不来了。
 
-推理真正需要的是：能够提出多个候选、评估它们、选出最有前景的，再在遇到死路时回退。这就是搜索。Tree of Thoughts 和 LATS 是这件事的两个经典表述。
+推理真正需要的是：能够提出多个候选、评估它们、选出最有前景的，再在遇到死路时回退。这就是搜索。思维树（Tree of Thoughts）和 LATS 是这件事的两个经典表述。
 
 ## 概念
 
-### Tree of Thoughts（Yao 等，NeurIPS 2023）
+### 思维树（Tree of Thoughts，Yao 等，NeurIPS 2023）
 
-每个节点都是一个连贯的中间步骤（“一个想法（thought）”）。每个节点可以扩展出 K 个子想法。LLM 会使用一个评分提示对每个节点进行自评估。搜索在树中展开——可以是 BFS、DFS 或 beam search（束搜索）。
+每个节点都是一个连贯的中间步骤（“一个想法（thought）”）。每个节点可以扩展出 K 个子想法。LLM 会使用一个评分提示对每个节点进行自评估。搜索在树中展开——可以是 BFS、DFS 或束搜索（beam search）。
 
 ```
                      (root: "find 24 from 4 6 4 1")
@@ -113,7 +113,7 @@ LangGraph 通过子图模式提供 ToT 风格的探索；LangChain 团队关于 
 
 | 术语 | 人们常说 | 实际含义 |
 |------|----------------|------------------------|
-| Tree of Thoughts | “分叉版 CoT” | Yao 等人的方法——带自评估的想法节点树 |
+| 思维树（Tree of Thoughts） | “分叉版 CoT” | Yao 等人的方法——带自评估的想法节点树 |
 | LATS | “面向 LLM 的 MCTS” | Zhou 等人的方法——在 MCTS 下统一 ToT + ReAct + Reflexion |
 | UCT | “上置信界” | 在利用（Q）与探索（ln N / n）之间平衡的选择公式 |
 | 价值函数（Value function） | “这个状态有多好” | 由提示驱动的 LLM 分数或环境奖励；用于回传 |

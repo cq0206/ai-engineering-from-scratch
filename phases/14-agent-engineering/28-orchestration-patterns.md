@@ -26,13 +26,13 @@
 - 它负责决定：回到自身循环、交接给专家、结束。
 - 专家之间不直接交流；所有路由都经过监督者。
 
-相关框架：LangGraph `create_supervisor`、Anthropic orchestrator-workers、CrewAI Hierarchical Process。
+相关框架：LangGraph `create_supervisor`、Anthropic orchestrator-工作者（workers）、CrewAI Hierarchical Process。
 
 **2026 年 LangChain 建议：** 通过直接工具调用来实现监督，而不是使用 `create_supervisor`。这样可以获得更细粒度的上下文工程控制——由你精确决定每个专家能看到什么。
 
 ### 群体式 / 点对点
 
-- 智能体通过共享工具表面直接交接。
+- 智能体通过共享工具界面直接交接。
 - 没有中央路由器。
 - 延迟低于监督者模式（跳数更少）。
 - 但更难推理与管控（没有单一控制点）。
@@ -103,7 +103,7 @@ python3 code/main.py
 - **LangGraph**：适合监督者模式和分层式（嵌套子图）。
 - **OpenAI Agents SDK**：适合“将交接实现为工具”（偏监督者形态）。
 - **CrewAI Flow**：适合生产级确定性流程。
-- **自定义（Custom）**：适合辩论模式，或你想获得精确控制的场景。
+- **自定义**：适合辩论模式，或你想获得精确控制的场景。
 
 ## 交付它
 

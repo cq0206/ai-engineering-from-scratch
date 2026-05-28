@@ -4,7 +4,7 @@
 
 **Type:** Learn
 **Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 19 (SWE-bench, GAIA)
+**Prerequisites:** 第 14 阶段 · 19 (SWE-bench, GAIA)
 **Time:** ~60 minutes
 
 ## Learning Objectives

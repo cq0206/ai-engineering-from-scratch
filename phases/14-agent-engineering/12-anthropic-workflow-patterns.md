@@ -9,7 +9,7 @@
 
 ## 学习目标
 
-- 说出 Anthropic 的五种工作流模式：提示链（prompt chaining）、路由（routing）、并行化（parallelization）、协调者-工作者（orchestrator-workers）、评估者-优化器（evaluator-optimizer）。
+- 说出 Anthropic 的五种工作流模式：提示链（prompt chaining）、路由（routing）、并行化（parallelization）、协调者-工作者（orchestrator-工作者（workers））、评估者-优化器（evaluator-optimizer）。
 - 解释智能体与工作流的区别，以及各自的工程成本。
 - 判断何时应选择工作流而非智能体（以及反过来何时应选择智能体）。
 - 仅使用标准库、基于脚本化 LLM 实现这五种模式。

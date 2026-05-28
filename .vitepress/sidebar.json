@@ -4,51 +4,51 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Dev Environment",
+        "text": "开发环境",
         "link": "/phases/00-setup-and-tooling/01-dev-environment"
       },
       {
-        "text": "Git & Collaboration",
+        "text": "Git 与协作",
         "link": "/phases/00-setup-and-tooling/02-git-and-collaboration"
       },
       {
-        "text": "GPU Setup & Cloud",
+        "text": "GPU 配置与云端",
         "link": "/phases/00-setup-and-tooling/03-gpu-setup-and-cloud"
       },
       {
-        "text": "APIs & Keys",
+        "text": "API 与密钥",
         "link": "/phases/00-setup-and-tooling/04-apis-and-keys"
       },
       {
-        "text": "Jupyter Notebooks",
+        "text": "Jupyter 笔记本",
         "link": "/phases/00-setup-and-tooling/05-jupyter-notebooks"
       },
       {
-        "text": "Python Environments",
+        "text": "Python 环境",
         "link": "/phases/00-setup-and-tooling/06-python-environments"
       },
       {
-        "text": "Docker for AI",
+        "text": "面向 AI 的 Docker",
         "link": "/phases/00-setup-and-tooling/07-docker-for-ai"
       },
       {
-        "text": "Editor Setup",
+        "text": "编辑器设置",
         "link": "/phases/00-setup-and-tooling/08-editor-setup"
       },
       {
-        "text": "Data Management",
+        "text": "数据管理",
         "link": "/phases/00-setup-and-tooling/09-data-management"
       },
       {
-        "text": "Terminal & Shell",
+        "text": "终端与 Shell",
         "link": "/phases/00-setup-and-tooling/10-terminal-and-shell"
       },
       {
-        "text": "Linux for AI",
+        "text": "AI 工程中的 Linux",
         "link": "/phases/00-setup-and-tooling/11-linux-for-ai"
       },
       {
-        "text": "Debugging and Profiling",
+        "text": "调试与性能分析",
         "link": "/phases/00-setup-and-tooling/12-debugging-and-profiling"
       }
     ]
@@ -58,91 +58,91 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Linear Algebra Intuition",
+        "text": "线性代数直觉",
         "link": "/phases/01-math-foundations/01-linear-algebra-intuition"
       },
       {
-        "text": "Vectors, Matrices & Operations",
+        "text": "向量、矩阵与运算",
         "link": "/phases/01-math-foundations/02-vectors-matrices-operations"
       },
       {
-        "text": "Matrix Transformations",
+        "text": "矩阵变换",
         "link": "/phases/01-math-foundations/03-matrix-transformations"
       },
       {
-        "text": "Calculus for Machine Learning",
+        "text": "机器学习中的微积分",
         "link": "/phases/01-math-foundations/04-calculus-for-ml"
       },
       {
-        "text": "Chain Rule & Automatic Differentiation",
+        "text": "链式法则与自动微分",
         "link": "/phases/01-math-foundations/05-chain-rule-and-autodiff"
       },
       {
-        "text": "Probability and Distributions",
+        "text": "概率与分布",
         "link": "/phases/01-math-foundations/06-probability-and-distributions"
       },
       {
-        "text": "Bayes' Theorem",
+        "text": "贝叶斯定理",
         "link": "/phases/01-math-foundations/07-bayes-theorem"
       },
       {
-        "text": "Optimization",
+        "text": "优化",
         "link": "/phases/01-math-foundations/08-optimization"
       },
       {
-        "text": "Information Theory",
+        "text": "信息论",
         "link": "/phases/01-math-foundations/09-information-theory"
       },
       {
-        "text": "Dimensionality Reduction",
+        "text": "降维",
         "link": "/phases/01-math-foundations/10-dimensionality-reduction"
       },
       {
-        "text": "Singular Value Decomposition",
+        "text": "奇异值分解",
         "link": "/phases/01-math-foundations/11-singular-value-decomposition"
       },
       {
-        "text": "Tensor Operations",
+        "text": "张量运算",
         "link": "/phases/01-math-foundations/12-tensor-operations"
       },
       {
-        "text": "Numerical Stability",
+        "text": "数值稳定性",
         "link": "/phases/01-math-foundations/13-numerical-stability"
       },
       {
-        "text": "Norms and Distances",
+        "text": "范数与距离",
         "link": "/phases/01-math-foundations/14-norms-and-distances"
       },
       {
-        "text": "Statistics for Machine Learning",
+        "text": "机器学习中的统计学",
         "link": "/phases/01-math-foundations/15-statistics-for-ml"
       },
       {
-        "text": "Sampling Methods",
+        "text": "采样方法",
         "link": "/phases/01-math-foundations/16-sampling-methods"
       },
       {
-        "text": "Linear Systems",
+        "text": "线性方程组",
         "link": "/phases/01-math-foundations/17-linear-systems"
       },
       {
-        "text": "Convex Optimization",
+        "text": "凸优化",
         "link": "/phases/01-math-foundations/18-convex-optimization"
       },
       {
-        "text": "Complex Numbers for AI",
+        "text": "面向 AI 的复数",
         "link": "/phases/01-math-foundations/19-complex-numbers"
       },
       {
-        "text": "The Fourier Transform",
+        "text": "傅里叶变换",
         "link": "/phases/01-math-foundations/20-fourier-transform"
       },
       {
-        "text": "Graph Theory for Machine Learning",
+        "text": "面向机器学习的图论",
         "link": "/phases/01-math-foundations/21-graph-theory"
       },
       {
-        "text": "Stochastic Processes",
+        "text": "随机过程",
         "link": "/phases/01-math-foundations/22-stochastic-processes"
       }
     ]
@@ -152,75 +152,75 @@
     "collapsed": true,
     "items": [
       {
-        "text": "What Is Machine Learning",
+        "text": "什么是机器学习",
         "link": "/phases/02-ml-fundamentals/01-what-is-machine-learning"
       },
       {
-        "text": "Linear Regression",
+        "text": "线性回归",
         "link": "/phases/02-ml-fundamentals/02-linear-regression"
       },
       {
-        "text": "Logistic Regression",
+        "text": "逻辑回归",
         "link": "/phases/02-ml-fundamentals/03-logistic-regression"
       },
       {
-        "text": "Decision Trees and Random Forests",
+        "text": "决策树与随机森林",
         "link": "/phases/02-ml-fundamentals/04-decision-trees"
       },
       {
-        "text": "Support Vector Machines",
+        "text": "支持向量机",
         "link": "/phases/02-ml-fundamentals/05-support-vector-machines"
       },
       {
-        "text": "K-Nearest Neighbors and Distances",
+        "text": "K 最近邻与距离",
         "link": "/phases/02-ml-fundamentals/06-knn-and-distances"
       },
       {
-        "text": "Unsupervised Learning",
+        "text": "无监督学习",
         "link": "/phases/02-ml-fundamentals/07-unsupervised-learning"
       },
       {
-        "text": "Feature Engineering & Selection",
+        "text": "特征工程与特征选择",
         "link": "/phases/02-ml-fundamentals/08-feature-engineering"
       },
       {
-        "text": "Model Evaluation",
+        "text": "模型评估",
         "link": "/phases/02-ml-fundamentals/09-model-evaluation"
       },
       {
-        "text": "Bias-Variance Tradeoff",
+        "text": "偏差-方差权衡",
         "link": "/phases/02-ml-fundamentals/10-bias-variance"
       },
       {
-        "text": "Ensemble Methods",
+        "text": "集成方法",
         "link": "/phases/02-ml-fundamentals/11-ensemble-methods"
       },
       {
-        "text": "Hyperparameter Tuning",
+        "text": "超参数调优",
         "link": "/phases/02-ml-fundamentals/12-hyperparameter-tuning"
       },
       {
-        "text": "ML Pipelines",
+        "text": "ML 流水线",
         "link": "/phases/02-ml-fundamentals/13-ml-pipelines"
       },
       {
-        "text": "Naive Bayes",
+        "text": "朴素贝叶斯",
         "link": "/phases/02-ml-fundamentals/14-naive-bayes"
       },
       {
-        "text": "Time Series Fundamentals",
+        "text": "时间序列基础",
         "link": "/phases/02-ml-fundamentals/15-time-series"
       },
       {
-        "text": "Anomaly Detection",
+        "text": "异常检测",
         "link": "/phases/02-ml-fundamentals/16-anomaly-detection"
       },
       {
-        "text": "Handling Imbalanced Data",
+        "text": "处理类别不平衡数据",
         "link": "/phases/02-ml-fundamentals/17-imbalanced-data"
       },
       {
-        "text": "Feature Selection",
+        "text": "特征选择",
         "link": "/phases/02-ml-fundamentals/18-feature-selection"
       }
     ]
@@ -230,55 +230,55 @@
     "collapsed": true,
     "items": [
       {
-        "text": "The Perceptron",
+        "text": "感知机",
         "link": "/phases/03-deep-learning-core/01-the-perceptron"
       },
       {
-        "text": "Multi-Layer Networks and Forward Pass",
+        "text": "多层网络与前向传播",
         "link": "/phases/03-deep-learning-core/02-multi-layer-networks"
       },
       {
-        "text": "Backpropagation from Scratch",
+        "text": "从零实现反向传播",
         "link": "/phases/03-deep-learning-core/03-backpropagation"
       },
       {
-        "text": "Activation Functions",
+        "text": "激活函数",
         "link": "/phases/03-deep-learning-core/04-activation-functions"
       },
       {
-        "text": "Loss Functions",
+        "text": "损失函数",
         "link": "/phases/03-deep-learning-core/05-loss-functions"
       },
       {
-        "text": "Optimizers",
+        "text": "优化器",
         "link": "/phases/03-deep-learning-core/06-optimizers"
       },
       {
-        "text": "Regularization",
+        "text": "正则化",
         "link": "/phases/03-deep-learning-core/07-regularization"
       },
       {
-        "text": "Weight Initialization and Training Stability",
+        "text": "权重初始化与训练稳定性",
         "link": "/phases/03-deep-learning-core/08-weight-initialization"
       },
       {
-        "text": "Learning Rate Schedules and Warmup",
+        "text": "学习率调度与预热",
         "link": "/phases/03-deep-learning-core/09-learning-rate-schedules"
       },
       {
-        "text": "Build Your Own Mini Framework",
+        "text": "构建迷你框架",
         "link": "/phases/03-deep-learning-core/10-mini-framework"
       },
       {
-        "text": "Introduction to PyTorch",
+        "text": "PyTorch 入门",
         "link": "/phases/03-deep-learning-core/11-intro-to-pytorch"
       },
       {
-        "text": "Introduction to JAX",
+        "text": "JAX 入门",
         "link": "/phases/03-deep-learning-core/12-intro-to-jax"
       },
       {
-        "text": "Debugging Neural Networks",
+        "text": "调试神经网络",
         "link": "/phases/03-deep-learning-core/13-debugging-neural-networks"
       }
     ]
@@ -288,115 +288,115 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Image Fundamentals — Pixels, Channels, Color Spaces",
+        "text": "图像基础：像素、通道与色彩空间",
         "link": "/phases/04-computer-vision/01-image-fundamentals"
       },
       {
-        "text": "Convolutions from Scratch",
+        "text": "从零开始实现卷积",
         "link": "/phases/04-computer-vision/02-convolutions-from-scratch"
       },
       {
-        "text": "CNNs — LeNet to ResNet",
+        "text": "CNN：从 LeNet 到 ResNet",
         "link": "/phases/04-computer-vision/03-cnns-lenet-to-resnet"
       },
       {
-        "text": "Image Classification",
+        "text": "图像分类",
         "link": "/phases/04-computer-vision/04-image-classification"
       },
       {
-        "text": "Transfer Learning & Fine-Tuning",
+        "text": "迁移学习与微调",
         "link": "/phases/04-computer-vision/05-transfer-learning"
       },
       {
-        "text": "Object Detection — YOLO from Scratch",
+        "text": "目标检测：从零开始实现 YOLO",
         "link": "/phases/04-computer-vision/06-object-detection-yolo"
       },
       {
-        "text": "Semantic Segmentation — U-Net",
+        "text": "语义分割：U-Net",
         "link": "/phases/04-computer-vision/07-semantic-segmentation-unet"
       },
       {
-        "text": "Instance Segmentation — Mask R-CNN",
+        "text": "实例分割：Mask R-CNN",
         "link": "/phases/04-computer-vision/08-instance-segmentation-mask-rcnn"
       },
       {
-        "text": "Image Generation — GANs",
+        "text": "图像生成：GAN",
         "link": "/phases/04-computer-vision/09-image-generation-gans"
       },
       {
-        "text": "Image Generation — Diffusion Models",
+        "text": "图像生成：扩散模型",
         "link": "/phases/04-computer-vision/10-image-generation-diffusion"
       },
       {
-        "text": "Stable Diffusion — Architecture & Fine-Tuning",
+        "text": "Stable Diffusion：架构与微调",
         "link": "/phases/04-computer-vision/11-stable-diffusion"
       },
       {
-        "text": "Video Understanding — Temporal Modeling",
+        "text": "视频理解：时序建模",
         "link": "/phases/04-computer-vision/12-video-understanding"
       },
       {
-        "text": "3D Vision — Point Clouds & NeRFs",
+        "text": "3D 视觉：点云与 NeRF",
         "link": "/phases/04-computer-vision/13-3d-vision-nerf"
       },
       {
-        "text": "Vision Transformers (ViT)",
+        "text": "视觉 Transformer（ViT）",
         "link": "/phases/04-computer-vision/14-vision-transformers"
       },
       {
-        "text": "Real-Time Vision — Edge Deployment",
+        "text": "实时视觉：边缘部署",
         "link": "/phases/04-computer-vision/15-real-time-edge"
       },
       {
-        "text": "Build a Complete Vision Pipeline — Capstone",
+        "text": "构建完整视觉流水线：综合实战",
         "link": "/phases/04-computer-vision/16-vision-pipeline-capstone"
       },
       {
-        "text": "Self-Supervised Vision — SimCLR, DINO, MAE",
+        "text": "自监督视觉：SimCLR、DINO、MAE",
         "link": "/phases/04-computer-vision/17-self-supervised-vision"
       },
       {
-        "text": "Open-Vocabulary Vision — CLIP",
+        "text": "开放词汇视觉：CLIP",
         "link": "/phases/04-computer-vision/18-open-vocab-clip"
       },
       {
-        "text": "OCR & Document Understanding",
+        "text": "OCR 与文档理解",
         "link": "/phases/04-computer-vision/19-ocr-document-understanding"
       },
       {
-        "text": "Image Retrieval & Metric Learning",
+        "text": "图像检索与度量学习",
         "link": "/phases/04-computer-vision/20-image-retrieval-metric"
       },
       {
-        "text": "Keypoint Detection & Pose Estimation",
+        "text": "关键点检测与姿态估计",
         "link": "/phases/04-computer-vision/21-keypoint-pose"
       },
       {
-        "text": "3D Gaussian Splatting from Scratch",
+        "text": "从零开始实现 3D Gaussian Splatting",
         "link": "/phases/04-computer-vision/22-3d-gaussian-splatting"
       },
       {
-        "text": "Diffusion Transformers & Rectified Flow",
+        "text": "Diffusion Transformer 与 Rectified Flow",
         "link": "/phases/04-computer-vision/23-diffusion-transformers-rectified-flow"
       },
       {
-        "text": "SAM 3 & Open-Vocabulary Segmentation",
+        "text": "SAM 3 与开放词汇分割",
         "link": "/phases/04-computer-vision/24-sam3-open-vocab-segmentation"
       },
       {
-        "text": "Vision-Language Models — The ViT-MLP-LLM Pattern",
+        "text": "视觉语言模型：ViT-MLP-LLM 模式",
         "link": "/phases/04-computer-vision/25-vision-language-models"
       },
       {
-        "text": "Monocular Depth & Geometry Estimation",
+        "text": "单目深度与几何估计",
         "link": "/phases/04-computer-vision/26-monocular-depth"
       },
       {
-        "text": "Multi-Object Tracking & Video Memory",
+        "text": "多目标跟踪与视频记忆",
         "link": "/phases/04-computer-vision/27-multi-object-tracking"
       },
       {
-        "text": "World Models & Video Diffusion",
+        "text": "世界模型与视频扩散",
         "link": "/phases/04-computer-vision/28-world-models-video-diffusion"
       }
     ]
@@ -406,119 +406,119 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Text Processing — Tokenization, Stemming, Lemmatization",
+        "text": "文本处理：分词、词干提取与词形还原",
         "link": "/phases/05-nlp-foundations-to-advanced/01-text-processing"
       },
       {
-        "text": "Bag of Words, TF-IDF, and Text Representation",
+        "text": "词袋模型、TF-IDF 与文本表示",
         "link": "/phases/05-nlp-foundations-to-advanced/02-bag-of-words-tfidf"
       },
       {
-        "text": "Word Embeddings — Word2Vec from Scratch",
+        "text": "词嵌入：从零开始实现 Word2Vec",
         "link": "/phases/05-nlp-foundations-to-advanced/03-word-embeddings-word2vec"
       },
       {
-        "text": "GloVe, FastText, and Subword Embeddings",
+        "text": "GloVe、FastText 与子词嵌入",
         "link": "/phases/05-nlp-foundations-to-advanced/04-glove-fasttext-subword"
       },
       {
-        "text": "Sentiment Analysis",
+        "text": "情感分析",
         "link": "/phases/05-nlp-foundations-to-advanced/05-sentiment-analysis"
       },
       {
-        "text": "Named Entity Recognition",
+        "text": "命名实体识别",
         "link": "/phases/05-nlp-foundations-to-advanced/06-named-entity-recognition"
       },
       {
-        "text": "POS Tagging and Syntactic Parsing",
+        "text": "词性标注与句法解析",
         "link": "/phases/05-nlp-foundations-to-advanced/07-pos-tagging-parsing"
       },
       {
-        "text": "CNNs and RNNs for Text",
+        "text": "用于文本的 CNN 与 RNN",
         "link": "/phases/05-nlp-foundations-to-advanced/08-cnns-rnns-for-text"
       },
       {
-        "text": "Sequence-to-Sequence Models",
+        "text": "序列到序列模型",
         "link": "/phases/05-nlp-foundations-to-advanced/09-sequence-to-sequence"
       },
       {
-        "text": "Attention Mechanism — The Breakthrough",
+        "text": "注意力机制：关键突破",
         "link": "/phases/05-nlp-foundations-to-advanced/10-attention-mechanism"
       },
       {
-        "text": "Machine Translation",
+        "text": "机器翻译",
         "link": "/phases/05-nlp-foundations-to-advanced/11-machine-translation"
       },
       {
-        "text": "Text Summarization",
+        "text": "文本摘要",
         "link": "/phases/05-nlp-foundations-to-advanced/12-text-summarization"
       },
       {
-        "text": "Question Answering Systems",
+        "text": "问答系统",
         "link": "/phases/05-nlp-foundations-to-advanced/13-question-answering"
       },
       {
-        "text": "Information Retrieval and Search",
+        "text": "信息检索与搜索",
         "link": "/phases/05-nlp-foundations-to-advanced/14-information-retrieval-search"
       },
       {
-        "text": "Topic Modeling — LDA and BERTopic",
+        "text": "主题建模：LDA 与 BERTopic",
         "link": "/phases/05-nlp-foundations-to-advanced/15-topic-modeling"
       },
       {
-        "text": "Text Generation Before Transformers — N-gram Language Models",
+        "text": "Transformer 之前的文本生成：N-gram 语言模型",
         "link": "/phases/05-nlp-foundations-to-advanced/16-text-generation-pre-transformer"
       },
       {
-        "text": "Chatbots — Rule-Based to Neural to LLM Agents",
+        "text": "聊天机器人：从规则到神经网络再到 LLM Agent",
         "link": "/phases/05-nlp-foundations-to-advanced/17-chatbots-rule-to-neural"
       },
       {
-        "text": "Multilingual NLP",
+        "text": "多语言 NLP",
         "link": "/phases/05-nlp-foundations-to-advanced/18-multilingual-nlp"
       },
       {
-        "text": "Subword Tokenization — BPE, WordPiece, Unigram, SentencePiece",
+        "text": "子词分词：BPE、WordPiece、Unigram、SentencePiece",
         "link": "/phases/05-nlp-foundations-to-advanced/19-subword-tokenization"
       },
       {
-        "text": "Structured Outputs & Constrained Decoding",
+        "text": "结构化输出与约束解码",
         "link": "/phases/05-nlp-foundations-to-advanced/20-structured-outputs-constrained-decoding"
       },
       {
-        "text": "Natural Language Inference — Textual Entailment",
+        "text": "自然语言推理：文本蕴含",
         "link": "/phases/05-nlp-foundations-to-advanced/21-nli-textual-entailment"
       },
       {
-        "text": "Embedding Models — The 2026 Deep Dive",
+        "text": "嵌入模型：2026 深度解析",
         "link": "/phases/05-nlp-foundations-to-advanced/22-embedding-models-deep-dive"
       },
       {
-        "text": "Chunking Strategies for RAG",
+        "text": "RAG 的分块策略",
         "link": "/phases/05-nlp-foundations-to-advanced/23-chunking-strategies-rag"
       },
       {
-        "text": "Coreference Resolution",
+        "text": "指代消解",
         "link": "/phases/05-nlp-foundations-to-advanced/24-coreference-resolution"
       },
       {
-        "text": "Entity Linking & Disambiguation",
+        "text": "实体链接与消歧",
         "link": "/phases/05-nlp-foundations-to-advanced/25-entity-linking"
       },
       {
-        "text": "Relation Extraction & Knowledge Graph Construction",
+        "text": "关系抽取与知识图谱构建",
         "link": "/phases/05-nlp-foundations-to-advanced/26-relation-extraction-kg"
       },
       {
-        "text": "LLM Evaluation — RAGAS, DeepEval, G-Eval",
+        "text": "LLM 评测：RAGAS、DeepEval、G-Eval",
         "link": "/phases/05-nlp-foundations-to-advanced/27-llm-evaluation-frameworks"
       },
       {
-        "text": "Long-Context Evaluation — NIAH, RULER, LongBench, MRCR",
+        "text": "长上下文评测：NIAH、RULER、LongBench、MRCR",
         "link": "/phases/05-nlp-foundations-to-advanced/28-long-context-evaluation"
       },
       {
-        "text": "Dialogue State Tracking",
+        "text": "对话状态跟踪",
         "link": "/phases/05-nlp-foundations-to-advanced/29-dialogue-state-tracking"
       }
     ]
@@ -528,71 +528,71 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Audio Fundamentals — Waveforms, Sampling, Fourier Transform",
+        "text": "音频基础：波形、采样与傅里叶变换",
         "link": "/phases/06-speech-and-audio/01-audio-fundamentals"
       },
       {
-        "text": "Spectrograms, Mel Scale & Audio Features",
+        "text": "频谱图、Mel 尺度与音频特征",
         "link": "/phases/06-speech-and-audio/02-spectrograms-mel-features"
       },
       {
-        "text": "Audio Classification — From k-NN on MFCCs to AST and BEATs",
+        "text": "音频分类：从基于 MFCC 的 k-NN 到 AST 与 BEATs",
         "link": "/phases/06-speech-and-audio/03-audio-classification"
       },
       {
-        "text": "Speech Recognition (ASR) — CTC, RNN-T, Attention",
+        "text": "语音识别（ASR）：CTC、RNN-T 与注意力机制",
         "link": "/phases/06-speech-and-audio/04-speech-recognition-asr"
       },
       {
-        "text": "Whisper — Architecture & Fine-Tuning",
+        "text": "Whisper：架构与微调",
         "link": "/phases/06-speech-and-audio/05-whisper-architecture-finetuning"
       },
       {
-        "text": "Speaker Recognition & Verification",
+        "text": "说话人识别与验证",
         "link": "/phases/06-speech-and-audio/06-speaker-recognition-verification"
       },
       {
-        "text": "Text-to-Speech (TTS) — From Tacotron to F5 and Kokoro",
+        "text": "语音合成（TTS）：从 Tacotron 到 F5 与 Kokoro",
         "link": "/phases/06-speech-and-audio/07-text-to-speech"
       },
       {
-        "text": "Voice Cloning & Voice Conversion",
+        "text": "语音克隆与语音转换",
         "link": "/phases/06-speech-and-audio/08-voice-cloning-conversion"
       },
       {
-        "text": "Music Generation — MusicGen, Stable Audio, Suno, and the Licensing Earthquake",
+        "text": "音乐生成：MusicGen、Stable Audio、Suno 与版权地震",
         "link": "/phases/06-speech-and-audio/09-music-generation"
       },
       {
-        "text": "Audio-Language Models — Qwen2.5-Omni, Audio Flamingo, GPT-4o Audio",
+        "text": "音频语言模型：Qwen2.5-Omni、Audio Flamingo、GPT-4o Audio",
         "link": "/phases/06-speech-and-audio/10-audio-language-models"
       },
       {
-        "text": "Real-Time Audio Processing",
+        "text": "实时音频处理",
         "link": "/phases/06-speech-and-audio/11-real-time-audio-processing"
       },
       {
-        "text": "Build a Voice Assistant Pipeline — The Phase 6 Capstone",
+        "text": "构建语音助手流水线：综合实战",
         "link": "/phases/06-speech-and-audio/12-voice-assistant-pipeline"
       },
       {
-        "text": "Neural Audio Codecs — EnCodec, SNAC, Mimi, DAC and the Semantic-Acoustic Split",
+        "text": "神经音频编解码器：EnCodec、SNAC、Mimi、DAC 与语义-声学分离",
         "link": "/phases/06-speech-and-audio/13-neural-audio-codecs"
       },
       {
-        "text": "Voice Activity Detection & Turn-Taking — Silero, Cobra, and the Flush Trick",
+        "text": "语音活动检测与轮次交接：Silero、Cobra 与 Flush Trick",
         "link": "/phases/06-speech-and-audio/14-voice-activity-detection-turn-taking"
       },
       {
-        "text": "Streaming Speech-to-Speech — Moshi, Hibiki, and Full-Duplex Dialogue",
+        "text": "流式语音到语音：Moshi、Hibiki 与全双工对话",
         "link": "/phases/06-speech-and-audio/15-streaming-speech-to-speech-moshi-hibiki"
       },
       {
-        "text": "Voice Anti-Spoofing & Audio Watermarking — ASVspoof 5, AudioSeal, WaveVerify",
+        "text": "语音反欺骗与音频水印：ASVspoof 5、AudioSeal、WaveVerify",
         "link": "/phases/06-speech-and-audio/16-anti-spoofing-audio-watermarking"
       },
       {
-        "text": "Audio Evaluation — WER, MOS, UTMOS, MMAU, FAD, and the Open Leaderboards",
+        "text": "音频评测：WER、MOS、UTMOS、MMAU、FAD 与开放榜单",
         "link": "/phases/06-speech-and-audio/17-audio-evaluation-metrics"
       }
     ]
@@ -602,67 +602,67 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Why Transformers — The Problems with RNNs",
+        "text": "为什么需要 Transformer：RNN 的问题",
         "link": "/phases/07-transformers-deep-dive/01-why-transformers"
       },
       {
-        "text": "Self-Attention from Scratch",
+        "text": "从零实现自注意力机制",
         "link": "/phases/07-transformers-deep-dive/02-self-attention-from-scratch"
       },
       {
-        "text": "Multi-Head Attention",
+        "text": "多头注意力机制",
         "link": "/phases/07-transformers-deep-dive/03-multi-head-attention"
       },
       {
-        "text": "Positional Encoding — Sinusoidal, RoPE, ALiBi",
+        "text": "位置编码：Sinusoidal、RoPE 与 ALiBi",
         "link": "/phases/07-transformers-deep-dive/04-positional-encoding"
       },
       {
-        "text": "The Full Transformer — Encoder + Decoder",
+        "text": "完整的 Transformer：编码器 + 解码器",
         "link": "/phases/07-transformers-deep-dive/05-full-transformer"
       },
       {
-        "text": "BERT — Masked Language Modeling",
+        "text": "BERT：掩码语言建模",
         "link": "/phases/07-transformers-deep-dive/06-bert-masked-language-modeling"
       },
       {
-        "text": "GPT — Causal Language Modeling",
+        "text": "GPT：因果语言建模",
         "link": "/phases/07-transformers-deep-dive/07-gpt-causal-language-modeling"
       },
       {
-        "text": "T5, BART — Encoder-Decoder Models",
+        "text": "T5、BART：编码器-解码器模型",
         "link": "/phases/07-transformers-deep-dive/08-t5-bart-encoder-decoder"
       },
       {
-        "text": "Vision Transformers (ViT)",
+        "text": "视觉 Transformer（ViT）",
         "link": "/phases/07-transformers-deep-dive/09-vision-transformers"
       },
       {
-        "text": "Audio Transformers — Whisper Architecture",
+        "text": "音频 Transformer：Whisper 架构",
         "link": "/phases/07-transformers-deep-dive/10-audio-transformers-whisper"
       },
       {
-        "text": "Mixture of Experts (MoE)",
+        "text": "专家混合（MoE）",
         "link": "/phases/07-transformers-deep-dive/11-mixture-of-experts"
       },
       {
-        "text": "KV Cache, Flash Attention & Inference Optimization",
+        "text": "KV Cache、Flash Attention 与推理优化",
         "link": "/phases/07-transformers-deep-dive/12-kv-cache-flash-attention"
       },
       {
-        "text": "Scaling Laws",
+        "text": "规模定律",
         "link": "/phases/07-transformers-deep-dive/13-scaling-laws"
       },
       {
-        "text": "Build a Transformer from Scratch — The Capstone",
+        "text": "从零构建 Transformer：综合实践",
         "link": "/phases/07-transformers-deep-dive/14-build-a-transformer-capstone"
       },
       {
-        "text": "Attention Variants — Sliding Window, Sparse, Differential",
+        "text": "注意力变体：滑动窗口、稀疏与差分",
         "link": "/phases/07-transformers-deep-dive/15-attention-variants"
       },
       {
-        "text": "Speculative Decoding — Draft, Verify, Repeat",
+        "text": "投机解码：起草、验证、重复",
         "link": "/phases/07-transformers-deep-dive/16-speculative-decoding"
       }
     ]
@@ -672,19 +672,19 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Generative Models — Taxonomy & History",
+        "text": "生成模型：分类与发展历史",
         "link": "/phases/08-generative-ai/01-generative-models-taxonomy-history"
       },
       {
-        "text": "Autoencoders & Variational Autoencoders (VAE)",
+        "text": "自编码器与变分自编码器（VAE）",
         "link": "/phases/08-generative-ai/02-autoencoders-vae"
       },
       {
-        "text": "GANs — Generator vs Discriminator",
+        "text": "GAN：生成器与判别器",
         "link": "/phases/08-generative-ai/03-gans-generator-discriminator"
       },
       {
-        "text": "Conditional GANs & Pix2Pix",
+        "text": "条件 GAN 与 Pix2Pix",
         "link": "/phases/08-generative-ai/04-conditional-gans-pix2pix"
       },
       {
@@ -692,43 +692,43 @@
         "link": "/phases/08-generative-ai/05-stylegan"
       },
       {
-        "text": "Diffusion Models — DDPM from Scratch",
+        "text": "扩散模型：从零实现 DDPM",
         "link": "/phases/08-generative-ai/06-diffusion-ddpm-from-scratch"
       },
       {
-        "text": "Latent Diffusion & Stable Diffusion",
+        "text": "潜空间扩散与 Stable Diffusion",
         "link": "/phases/08-generative-ai/07-latent-diffusion-stable-diffusion"
       },
       {
-        "text": "ControlNet, LoRA & Conditioning",
+        "text": "ControlNet、LoRA 与条件控制",
         "link": "/phases/08-generative-ai/08-controlnet-lora-conditioning"
       },
       {
-        "text": "Inpainting, Outpainting & Image Editing",
+        "text": "图像补全、外扩与编辑",
         "link": "/phases/08-generative-ai/09-inpainting-outpainting-editing"
       },
       {
-        "text": "Video Generation",
+        "text": "视频生成",
         "link": "/phases/08-generative-ai/10-video-generation"
       },
       {
-        "text": "Audio Generation",
+        "text": "音频生成",
         "link": "/phases/08-generative-ai/11-audio-generation"
       },
       {
-        "text": "3D Generation",
+        "text": "3D 生成",
         "link": "/phases/08-generative-ai/12-3d-generation"
       },
       {
-        "text": "Flow Matching & Rectified Flows",
+        "text": "Flow Matching 与 Rectified Flows",
         "link": "/phases/08-generative-ai/13-flow-matching-rectified-flows"
       },
       {
-        "text": "Evaluation — FID, CLIP Score, Human Preference",
+        "text": "评估：FID、CLIP Score 与人类偏好",
         "link": "/phases/08-generative-ai/14-evaluation-fid-clip-score"
       },
       {
-        "text": "Visual Autoregressive Modeling (VAR): Next-Scale Prediction",
+        "text": "视觉自回归建模（VAR）：下一尺度预测",
         "link": "/phases/08-generative-ai/19-visual-autoregressive-var"
       }
     ]
@@ -738,51 +738,51 @@
     "collapsed": true,
     "items": [
       {
-        "text": "MDPs, States, Actions & Rewards",
+        "text": "MDP、状态、动作与奖励",
         "link": "/phases/09-reinforcement-learning/01-mdps-states-actions-rewards"
       },
       {
-        "text": "Dynamic Programming — Policy Iteration & Value Iteration",
+        "text": "动态规划：策略迭代与价值迭代",
         "link": "/phases/09-reinforcement-learning/02-dynamic-programming"
       },
       {
-        "text": "Monte Carlo Methods — Learning from Complete Episodes",
+        "text": "蒙特卡洛方法：从完整回合中学习",
         "link": "/phases/09-reinforcement-learning/03-monte-carlo-methods"
       },
       {
-        "text": "Temporal Difference — Q-Learning & SARSA",
+        "text": "时序差分：Q-Learning 与 SARSA",
         "link": "/phases/09-reinforcement-learning/04-q-learning-sarsa"
       },
       {
-        "text": "Deep Q-Networks (DQN)",
+        "text": "深度 Q 网络（DQN）",
         "link": "/phases/09-reinforcement-learning/05-dqn"
       },
       {
-        "text": "Policy Gradient — REINFORCE from Scratch",
+        "text": "策略梯度：从零实现 REINFORCE",
         "link": "/phases/09-reinforcement-learning/06-policy-gradients-reinforce"
       },
       {
-        "text": "Actor-Critic — A2C and A3C",
+        "text": "Actor-Critic：A2C 与 A3C",
         "link": "/phases/09-reinforcement-learning/07-actor-critic-a2c-a3c"
       },
       {
-        "text": "Proximal Policy Optimization (PPO)",
+        "text": "近端策略优化（PPO）",
         "link": "/phases/09-reinforcement-learning/08-ppo"
       },
       {
-        "text": "Reward Modeling & RLHF",
+        "text": "奖励建模与 RLHF",
         "link": "/phases/09-reinforcement-learning/09-reward-modeling-rlhf"
       },
       {
-        "text": "Multi-Agent RL",
+        "text": "多智能体强化学习",
         "link": "/phases/09-reinforcement-learning/10-multi-agent-rl"
       },
       {
-        "text": "Sim-to-Real Transfer",
+        "text": "仿真到现实迁移",
         "link": "/phases/09-reinforcement-learning/11-sim-to-real-transfer"
       },
       {
-        "text": "RL for Games — AlphaZero, MuZero, and the LLM-Reasoning Era",
+        "text": "游戏中的强化学习：AlphaZero、MuZero 与 LLM 推理时代",
         "link": "/phases/09-reinforcement-learning/12-rl-for-games"
       }
     ]
@@ -792,99 +792,99 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Tokenizers: BPE, WordPiece, SentencePiece",
+        "text": "分词器：BPE、WordPiece、SentencePiece",
         "link": "/phases/10-llms-from-scratch/01-tokenizers"
       },
       {
-        "text": "Building a Tokenizer from Scratch",
+        "text": "从零构建分词器",
         "link": "/phases/10-llms-from-scratch/02-building-a-tokenizer"
       },
       {
-        "text": "Data Pipelines for Pre-Training",
+        "text": "预训练数据管道",
         "link": "/phases/10-llms-from-scratch/03-data-pipelines"
       },
       {
-        "text": "Pre-Training a Mini GPT (124M Parameters)",
+        "text": "预训练 Mini GPT（124M 参数）",
         "link": "/phases/10-llms-from-scratch/04-pre-training-mini-gpt"
       },
       {
-        "text": "Scaling: Distributed Training, FSDP, DeepSpeed",
+        "text": "规模化训练：分布式训练、FSDP、DeepSpeed",
         "link": "/phases/10-llms-from-scratch/05-scaling-distributed"
       },
       {
-        "text": "Instruction Tuning (SFT)",
+        "text": "指令微调（SFT）",
         "link": "/phases/10-llms-from-scratch/06-instruction-tuning-sft"
       },
       {
-        "text": "RLHF: Reward Model + PPO",
+        "text": "RLHF：奖励模型 + PPO",
         "link": "/phases/10-llms-from-scratch/07-rlhf"
       },
       {
-        "text": "DPO: Direct Preference Optimization",
+        "text": "DPO：直接偏好优化",
         "link": "/phases/10-llms-from-scratch/08-dpo"
       },
       {
-        "text": "Constitutional AI and Self-Improvement",
+        "text": "宪法式 AI 与自我改进",
         "link": "/phases/10-llms-from-scratch/09-constitutional-ai-self-improvement"
       },
       {
-        "text": "Evaluation: Benchmarks, Evals, LM Harness",
+        "text": "评估：基准测试、Evals、LM Harness",
         "link": "/phases/10-llms-from-scratch/10-evaluation"
       },
       {
-        "text": "Quantization: Making Models Fit",
+        "text": "量化：让模型装得下",
         "link": "/phases/10-llms-from-scratch/11-quantization"
       },
       {
-        "text": "Inference Optimization",
+        "text": "推理优化",
         "link": "/phases/10-llms-from-scratch/12-inference-optimization"
       },
       {
-        "text": "Building a Complete LLM Pipeline",
+        "text": "构建完整 LLM 流水线",
         "link": "/phases/10-llms-from-scratch/13-building-complete-llm-pipeline"
       },
       {
-        "text": "Open Models: Architecture Walkthroughs",
+        "text": "开放模型：架构导读",
         "link": "/phases/10-llms-from-scratch/14-open-models-architecture-walkthroughs"
       },
       {
-        "text": "Speculative Decoding and EAGLE-3",
+        "text": "投机解码与 EAGLE-3",
         "link": "/phases/10-llms-from-scratch/15-speculative-decoding-eagle3"
       },
       {
-        "text": "Differential Attention (V2)",
+        "text": "差分注意力机制（V2）",
         "link": "/phases/10-llms-from-scratch/16-differential-attention-v2"
       },
       {
-        "text": "Native Sparse Attention (DeepSeek NSA)",
+        "text": "原生稀疏注意力（DeepSeek NSA）",
         "link": "/phases/10-llms-from-scratch/17-native-sparse-attention"
       },
       {
-        "text": "Multi-Token Prediction (MTP)",
+        "text": "多 Token 预测（MTP）",
         "link": "/phases/10-llms-from-scratch/18-multi-token-prediction"
       },
       {
-        "text": "DualPipe Parallelism",
+        "text": "DualPipe 并行",
         "link": "/phases/10-llms-from-scratch/19-dualpipe-parallelism"
       },
       {
-        "text": "DeepSeek-V3 Architecture Walkthrough",
+        "text": "DeepSeek-V3 架构导读",
         "link": "/phases/10-llms-from-scratch/20-deepseek-v3-walkthrough"
       },
       {
-        "text": "Jamba — Hybrid SSM-Transformer",
+        "text": "Jamba：混合 SSM-Transformer",
         "link": "/phases/10-llms-from-scratch/21-jamba-hybrid-ssm-transformer"
       },
       {
-        "text": "Async and Hogwild! Inference",
+        "text": "异步与 Hogwild! 推理",
         "link": "/phases/10-llms-from-scratch/22-async-hogwild-inference"
       },
       {
-        "text": "Speculative Decoding and EAGLE",
+        "text": "投机解码与 EAGLE",
         "link": "/phases/10-llms-from-scratch/25-speculative-decoding"
       },
       {
-        "text": "Gradient Checkpointing and Activation Recomputation",
+        "text": "梯度检查点与激活重计算",
         "link": "/phases/10-llms-from-scratch/34-gradient-checkpointing"
       }
     ]
@@ -894,71 +894,71 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Prompt Engineering: Techniques & Patterns",
+        "text": "提示工程：技巧与模式",
         "link": "/phases/11-llm-engineering/01-prompt-engineering"
       },
       {
-        "text": "Few-Shot, Chain-of-Thought, Tree-of-Thought",
+        "text": "少样本、思维链与思维树",
         "link": "/phases/11-llm-engineering/02-few-shot-cot"
       },
       {
-        "text": "Structured Outputs: JSON, Schema Validation, Constrained Decoding",
+        "text": "结构化输出：JSON、Schema 校验、约束解码",
         "link": "/phases/11-llm-engineering/03-structured-outputs"
       },
       {
-        "text": "Embeddings & Vector Representations",
+        "text": "嵌入与向量表示",
         "link": "/phases/11-llm-engineering/04-embeddings"
       },
       {
-        "text": "Context Engineering: Windows, Budgets, Memory, and Retrieval",
+        "text": "上下文工程：窗口、预算、记忆与检索",
         "link": "/phases/11-llm-engineering/05-context-engineering"
       },
       {
-        "text": "RAG (Retrieval-Augmented Generation)",
+        "text": "RAG（检索增强生成）",
         "link": "/phases/11-llm-engineering/06-rag"
       },
       {
-        "text": "Advanced RAG (Chunking, Reranking, Hybrid Search)",
+        "text": "高级 RAG：分块、重排、混合检索",
         "link": "/phases/11-llm-engineering/07-advanced-rag"
       },
       {
-        "text": "Fine-Tuning with LoRA & QLoRA",
+        "text": "使用 LoRA 与 QLoRA 微调",
         "link": "/phases/11-llm-engineering/08-fine-tuning-lora"
       },
       {
-        "text": "Function Calling & Tool Use",
+        "text": "函数调用与工具使用",
         "link": "/phases/11-llm-engineering/09-function-calling"
       },
       {
-        "text": "Evaluation & Testing LLM Applications",
+        "text": "LLM 应用评估与测试",
         "link": "/phases/11-llm-engineering/10-evaluation"
       },
       {
-        "text": "Caching, Rate Limiting & Cost Optimization",
+        "text": "缓存、限流与成本优化",
         "link": "/phases/11-llm-engineering/11-caching-cost"
       },
       {
-        "text": "Guardrails, Safety & Content Filtering",
+        "text": "护栏、安全与内容过滤",
         "link": "/phases/11-llm-engineering/12-guardrails"
       },
       {
-        "text": "Building a Production LLM Application",
+        "text": "构建生产级 LLM 应用",
         "link": "/phases/11-llm-engineering/13-production-app"
       },
       {
-        "text": "Model Context Protocol (MCP)",
+        "text": "模型上下文协议（MCP）",
         "link": "/phases/11-llm-engineering/14-model-context-protocol"
       },
       {
-        "text": "Prompt Caching and Context Caching",
+        "text": "Prompt 缓存与上下文缓存",
         "link": "/phases/11-llm-engineering/15-prompt-caching"
       },
       {
-        "text": "LangGraph — State Machines for Agents",
+        "text": "LangGraph：面向 Agent 的状态机",
         "link": "/phases/11-llm-engineering/16-langgraph-state-machines"
       },
       {
-        "text": "Agent Framework Tradeoffs — LangGraph vs CrewAI vs AutoGen vs Agno",
+        "text": "Agent 框架取舍：LangGraph vs CrewAI vs AutoGen vs Agno",
         "link": "/phases/11-llm-engineering/17-agent-framework-tradeoffs"
       }
     ]
@@ -968,103 +968,103 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Vision Transformers and the Patch-Token Primitive",
+        "text": "Vision Transformer 与 Patch-Token 基元",
         "link": "/phases/12-multimodal-ai/01-vision-transformer-patch-tokens"
       },
       {
-        "text": "CLIP and Contrastive Vision-Language Pretraining",
+        "text": "CLIP 与对比式视觉-语言预训练",
         "link": "/phases/12-multimodal-ai/02-clip-contrastive-pretraining"
       },
       {
-        "text": "From CLIP to BLIP-2 — Q-Former as Modality Bridge",
+        "text": "从 CLIP 到 BLIP-2：作为模态桥梁的 Q-Former",
         "link": "/phases/12-multimodal-ai/03-blip2-qformer-bridge"
       },
       {
-        "text": "Flamingo and Gated Cross-Attention for Few-Shot VLMs",
+        "text": "Flamingo 与用于少样本 VLM 的门控交叉注意力",
         "link": "/phases/12-multimodal-ai/04-flamingo-gated-cross-attention"
       },
       {
-        "text": "LLaVA and Visual Instruction Tuning",
+        "text": "LLaVA 与视觉指令微调",
         "link": "/phases/12-multimodal-ai/05-llava-visual-instruction-tuning"
       },
       {
-        "text": "Any-Resolution Vision: Patch-n'-Pack and NaFlex",
+        "text": "任意分辨率视觉：Patch-n'-Pack 与 NaFlex",
         "link": "/phases/12-multimodal-ai/06-any-resolution-patch-n-pack"
       },
       {
-        "text": "Open-Weight VLM Recipes: What Actually Matters",
+        "text": "开放权重 VLM 配方：真正重要的是什么",
         "link": "/phases/12-multimodal-ai/07-open-weight-vlm-recipes"
       },
       {
-        "text": "LLaVA-OneVision: Single-Image, Multi-Image, Video in One Model",
+        "text": "LLaVA-OneVision：单图、多图、视频一体化",
         "link": "/phases/12-multimodal-ai/08-llava-onevision-single-multi-video"
       },
       {
-        "text": "Qwen-VL Family and Dynamic-FPS Video",
+        "text": "Qwen-VL 家族与 Dynamic-FPS 视频",
         "link": "/phases/12-multimodal-ai/09-qwen-vl-family-dynamic-fps"
       },
       {
-        "text": "InternVL3: Native Multimodal Pretraining",
+        "text": "InternVL3：原生多模态预训练",
         "link": "/phases/12-multimodal-ai/10-internvl3-native-multimodal"
       },
       {
-        "text": "Chameleon and Early-Fusion Token-Only Multimodal Models",
+        "text": "Chameleon 与仅 Token 的早期融合多模态模型",
         "link": "/phases/12-multimodal-ai/11-chameleon-early-fusion-tokens"
       },
       {
-        "text": "Emu3: Next-Token Prediction for Image and Video Generation",
+        "text": "Emu3：用于图像与视频生成的下一 Token 预测",
         "link": "/phases/12-multimodal-ai/12-emu3-next-token-for-generation"
       },
       {
-        "text": "Transfusion: Autoregressive Text + Diffusion Image in One Transformer",
+        "text": "Transfusion：单个 Transformer 中的自回归文本 + 扩散图像",
         "link": "/phases/12-multimodal-ai/13-transfusion-autoregressive-diffusion"
       },
       {
-        "text": "Show-o and Discrete-Diffusion Unified Models",
+        "text": "Show-o 与离散扩散统一模型",
         "link": "/phases/12-multimodal-ai/14-show-o-discrete-diffusion-unified"
       },
       {
-        "text": "Janus-Pro: Decoupled Encoders for Unified Multimodal Models",
+        "text": "Janus-Pro：统一多模态模型的解耦编码器",
         "link": "/phases/12-multimodal-ai/15-janus-pro-decoupled-encoders"
       },
       {
-        "text": "MIO and Any-to-Any Streaming Multimodal Models",
+        "text": "MIO 与 Any-to-Any 流式多模态模型",
         "link": "/phases/12-multimodal-ai/16-mio-any-to-any-streaming"
       },
       {
-        "text": "Video-Language Models: Temporal Tokens and Grounding",
+        "text": "视频语言模型：时序 Token 与 Grounding",
         "link": "/phases/12-multimodal-ai/17-video-language-temporal-grounding"
       },
       {
-        "text": "Long-Video Understanding at Million-Token Context",
+        "text": "百万 Token 上下文下的长视频理解",
         "link": "/phases/12-multimodal-ai/18-long-video-million-token"
       },
       {
-        "text": "Audio-Language Models: the Whisper to Audio Flamingo 3 Arc",
+        "text": "音频语言模型：从 Whisper 到 Audio Flamingo 3",
         "link": "/phases/12-multimodal-ai/19-audio-language-whisper-to-af3"
       },
       {
-        "text": "Omni Models: Qwen2.5-Omni and the Thinker-Talker Split",
+        "text": "Omni 模型：Qwen2.5-Omni 与 Thinker-Talker 分离",
         "link": "/phases/12-multimodal-ai/20-omni-models-thinker-talker"
       },
       {
-        "text": "Embodied VLAs: RT-2, OpenVLA, π0, GR00T",
+        "text": "具身 VLA：RT-2、OpenVLA、π0、GR00T",
         "link": "/phases/12-multimodal-ai/21-embodied-vlas-openvla-pi0-groot"
       },
       {
-        "text": "Document and Diagram Understanding",
+        "text": "文档与图表理解",
         "link": "/phases/12-multimodal-ai/22-document-diagram-understanding"
       },
       {
-        "text": "ColPali and Vision-Native Document RAG",
+        "text": "ColPali 与视觉原生文档 RAG",
         "link": "/phases/12-multimodal-ai/23-colpali-vision-native-rag"
       },
       {
-        "text": "Multimodal RAG and Cross-Modal Retrieval",
+        "text": "多模态 RAG 与跨模态检索",
         "link": "/phases/12-multimodal-ai/24-multimodal-rag-cross-modal"
       },
       {
-        "text": "Multimodal Agents and Computer-Use (Capstone)",
+        "text": "多模态 Agent 与计算机操作（综合实战）",
         "link": "/phases/12-multimodal-ai/25-multimodal-agents-computer-use"
       }
     ]
@@ -1074,95 +1074,95 @@
     "collapsed": true,
     "items": [
       {
-        "text": "The Tool Interface — Why Agents Need Structured I/O",
+        "text": "工具接口：为什么 Agent 需要结构化 I/O",
         "link": "/phases/13-tools-and-protocols/01-the-tool-interface"
       },
       {
-        "text": "Function Calling Deep Dive — OpenAI, Anthropic, Gemini",
+        "text": "函数调用深入：OpenAI、Anthropic、Gemini",
         "link": "/phases/13-tools-and-protocols/02-function-calling-deep-dive"
       },
       {
-        "text": "Parallel Tool Calls and Streaming with Tools",
+        "text": "并行工具调用与工具流式处理",
         "link": "/phases/13-tools-and-protocols/03-parallel-and-streaming-tool-calls"
       },
       {
-        "text": "Structured Output — JSON Schema, Pydantic, Zod, Constrained Decoding",
+        "text": "结构化输出：JSON Schema、Pydantic、Zod、约束解码",
         "link": "/phases/13-tools-and-protocols/04-structured-output"
       },
       {
-        "text": "Tool Schema Design — Naming, Descriptions, Parameter Constraints",
+        "text": "工具 Schema 设计：命名、描述与参数约束",
         "link": "/phases/13-tools-and-protocols/05-tool-schema-design"
       },
       {
-        "text": "MCP Fundamentals — Primitives, Lifecycle, JSON-RPC Base",
+        "text": "MCP 基础：原语、生命周期与 JSON-RPC 基础",
         "link": "/phases/13-tools-and-protocols/06-mcp-fundamentals"
       },
       {
-        "text": "Building an MCP Server — Python + TypeScript SDKs",
+        "text": "构建 MCP Server：Python + TypeScript SDK",
         "link": "/phases/13-tools-and-protocols/07-building-an-mcp-server"
       },
       {
-        "text": "Building an MCP Client — Discovery, Invocation, Session Management",
+        "text": "构建 MCP Client：发现、调用与会话管理",
         "link": "/phases/13-tools-and-protocols/08-building-an-mcp-client"
       },
       {
-        "text": "MCP Transports — stdio vs Streamable HTTP vs SSE Migration",
+        "text": "MCP 传输：stdio vs Streamable HTTP vs SSE 迁移",
         "link": "/phases/13-tools-and-protocols/09-mcp-transports"
       },
       {
-        "text": "MCP Resources and Prompts — Context Exposure Beyond Tools",
+        "text": "MCP Resources 与 Prompts：超越工具的上下文暴露",
         "link": "/phases/13-tools-and-protocols/10-mcp-resources-and-prompts"
       },
       {
-        "text": "MCP Sampling — Server-Requested LLM Completions and Agent Loops",
+        "text": "MCP Sampling：Server 请求的 LLM 补全与 Agent 循环",
         "link": "/phases/13-tools-and-protocols/11-mcp-sampling"
       },
       {
-        "text": "Roots and Elicitation — Scoping and Mid-Flight User Input",
+        "text": "Roots 与 Elicitation：作用域与中途用户输入",
         "link": "/phases/13-tools-and-protocols/12-mcp-roots-and-elicitation"
       },
       {
-        "text": "Async Tasks (SEP-1686) — Call-Now, Fetch-Later for Long-Running Work",
+        "text": "异步任务（SEP-1686）：先调用、后获取的长任务模式",
         "link": "/phases/13-tools-and-protocols/13-mcp-async-tasks"
       },
       {
-        "text": "MCP Apps — Interactive UI Resources via `ui://`",
+        "text": "MCP Apps：通过 `ui://` 提供交互式 UI 资源",
         "link": "/phases/13-tools-and-protocols/14-mcp-apps"
       },
       {
-        "text": "MCP Security I — Tool Poisoning, Rug Pulls, Cross-Server Shadowing",
+        "text": "MCP 安全 I：工具投毒、Rug Pull 与跨 Server 阴影覆盖",
         "link": "/phases/13-tools-and-protocols/15-mcp-security-tool-poisoning"
       },
       {
-        "text": "MCP Security II — OAuth 2.1, Resource Indicators, Incremental Scopes",
+        "text": "MCP 安全 II：OAuth 2.1、资源指示器与增量 Scope",
         "link": "/phases/13-tools-and-protocols/16-mcp-security-oauth-2-1"
       },
       {
-        "text": "MCP Gateways and Registries — Enterprise Control Planes",
+        "text": "MCP 网关与注册表：企业控制平面",
         "link": "/phases/13-tools-and-protocols/17-mcp-gateways-and-registries"
       },
       {
-        "text": "MCP Auth in Production — DCR, JWKS Rotation, Audience-Pinned Tokens on iii Primitives",
+        "text": "生产级 MCP 认证：DCR、JWKS 轮换与 iii Primitives 上按 Audience 绑定的 Token",
         "link": "/phases/13-tools-and-protocols/18-mcp-auth-production"
       },
       {
-        "text": "A2A — Agent-to-Agent Protocol",
+        "text": "A2A：Agent-to-Agent 协议",
         "link": "/phases/13-tools-and-protocols/19-a2a-protocol"
       },
       {
-        "text": "OpenTelemetry GenAI — Tracing Tool Calls End-to-End",
+        "text": "OpenTelemetry GenAI：端到端追踪工具调用",
         "link": "/phases/13-tools-and-protocols/20-opentelemetry-genai"
       },
       {
-        "text": "LLM Routing Layer — LiteLLM, OpenRouter, Portkey",
+        "text": "LLM 路由层：LiteLLM、OpenRouter、Portkey",
         "link": "/phases/13-tools-and-protocols/21-llm-routing-layer"
       },
       {
-        "text": "Skills and Agent SDKs — Anthropic Skills, AGENTS.md, OpenAI Apps SDK",
+        "text": "Skills 与 Agent SDK：Anthropic Skills、AGENTS.md、OpenAI Apps SDK",
         "link": "/phases/13-tools-and-protocols/22-skills-and-agent-sdks"
       },
       {
-        "text": "Capstone — Build a Complete Tool Ecosystem",
+        "text": "综合实战：构建完整工具生态",
         "link": "/phases/13-tools-and-protocols/23-capstone-tool-ecosystem"
       }
     ]
@@ -1172,171 +1172,171 @@
     "collapsed": true,
     "items": [
       {
-        "text": "The Agent Loop: Observe, Think, Act",
+        "text": "Agent 循环：观察、思考、行动",
         "link": "/phases/14-agent-engineering/01-the-agent-loop"
       },
       {
-        "text": "ReWOO and Plan-and-Execute: Decoupled Planning",
+        "text": "ReWOO 与 Plan-and-Execute：解耦式规划",
         "link": "/phases/14-agent-engineering/02-rewoo-plan-and-execute"
       },
       {
-        "text": "Reflexion: Verbal Reinforcement Learning",
+        "text": "Reflexion：语言式强化学习",
         "link": "/phases/14-agent-engineering/03-reflexion-verbal-rl"
       },
       {
-        "text": "Tree of Thoughts and LATS: Deliberate Search",
+        "text": "Tree of Thoughts 与 LATS：审慎搜索",
         "link": "/phases/14-agent-engineering/04-tree-of-thoughts-lats"
       },
       {
-        "text": "Self-Refine and CRITIC: Iterative Output Improvement",
+        "text": "Self-Refine 与 CRITIC：迭代式输出改进",
         "link": "/phases/14-agent-engineering/05-self-refine-and-critic"
       },
       {
-        "text": "Tool Use and Function Calling",
+        "text": "工具使用与函数调用",
         "link": "/phases/14-agent-engineering/06-tool-use-and-function-calling"
       },
       {
-        "text": "Memory: Virtual Context and MemGPT",
+        "text": "记忆：虚拟上下文与 MemGPT",
         "link": "/phases/14-agent-engineering/07-memory-virtual-context-memgpt"
       },
       {
-        "text": "Memory Blocks and Sleep-Time Compute (Letta)",
+        "text": "记忆块与睡眠期计算（Letta）",
         "link": "/phases/14-agent-engineering/08-memory-blocks-sleep-time-compute"
       },
       {
-        "text": "Hybrid Memory: Vector + Graph + KV (Mem0)",
+        "text": "混合记忆：向量 + 图 + KV（Mem0）",
         "link": "/phases/14-agent-engineering/09-hybrid-memory-mem0"
       },
       {
-        "text": "Skill Libraries and Lifelong Learning (Voyager)",
+        "text": "技能库与终身学习（Voyager）",
         "link": "/phases/14-agent-engineering/10-skill-libraries-voyager"
       },
       {
-        "text": "Planning with HTN and Evolutionary Search",
+        "text": "用 HTN 与进化搜索进行规划",
         "link": "/phases/14-agent-engineering/11-planning-htn-and-evolutionary"
       },
       {
-        "text": "Anthropic's Workflow Patterns: Simple Over Complex",
+        "text": "Anthropic 工作流模式：简单胜于复杂",
         "link": "/phases/14-agent-engineering/12-anthropic-workflow-patterns"
       },
       {
-        "text": "LangGraph: Stateful Graphs and Durable Execution",
+        "text": "LangGraph：有状态图与持久化执行",
         "link": "/phases/14-agent-engineering/13-langgraph-stateful-graphs"
       },
       {
-        "text": "AutoGen v0.4: Actor Model and Agent Framework",
+        "text": "AutoGen v0.4：演员模型与智能体框架",
         "link": "/phases/14-agent-engineering/14-autogen-actor-model"
       },
       {
-        "text": "CrewAI: Role-Based Crews and Flows",
+        "text": "CrewAI：基于角色的团队与流程",
         "link": "/phases/14-agent-engineering/15-crewai-role-based-crews"
       },
       {
-        "text": "OpenAI Agents SDK: Handoffs, Guardrails, Tracing",
+        "text": "OpenAI Agents SDK：交接、护栏与追踪",
         "link": "/phases/14-agent-engineering/16-openai-agents-sdk"
       },
       {
-        "text": "Claude Agent SDK: Subagents and Session Store",
+        "text": "Claude Agent SDK：子智能体与会话存储",
         "link": "/phases/14-agent-engineering/17-claude-agent-sdk"
       },
       {
-        "text": "Agno and Mastra: Production Runtimes",
+        "text": "Agno 与 Mastra：生产运行时",
         "link": "/phases/14-agent-engineering/18-agno-and-mastra-runtimes"
       },
       {
-        "text": "Benchmarks: SWE-bench, GAIA, AgentBench",
+        "text": "基准测试：SWE-bench、GAIA、AgentBench",
         "link": "/phases/14-agent-engineering/19-benchmarks-swebench-gaia"
       },
       {
-        "text": "Benchmarks: WebArena and OSWorld",
+        "text": "基准测试：WebArena 与 OSWorld",
         "link": "/phases/14-agent-engineering/20-benchmarks-webarena-osworld"
       },
       {
-        "text": "Computer Use: Claude, OpenAI CUA, Gemini",
+        "text": "计算机使用：Claude、OpenAI CUA、Gemini",
         "link": "/phases/14-agent-engineering/21-computer-use-agents"
       },
       {
-        "text": "Voice Agents: Pipecat and LiveKit",
+        "text": "语音智能体：Pipecat 与 LiveKit",
         "link": "/phases/14-agent-engineering/22-voice-agents-pipecat-livekit"
       },
       {
-        "text": "OpenTelemetry GenAI Semantic Conventions",
+        "text": "OpenTelemetry GenAI 语义约定",
         "link": "/phases/14-agent-engineering/23-otel-genai-conventions"
       },
       {
-        "text": "Agent Observability: Langfuse, Phoenix, Opik",
+        "text": "智能体可观测性：Langfuse、Phoenix、Opik",
         "link": "/phases/14-agent-engineering/24-agent-observability-platforms"
       },
       {
-        "text": "Multi-Agent Debate and Collaboration",
+        "text": "多智能体辩论与协作",
         "link": "/phases/14-agent-engineering/25-multi-agent-debate"
       },
       {
-        "text": "Failure Modes: Why Agents Break",
+        "text": "失效模式：智能体为何失效",
         "link": "/phases/14-agent-engineering/26-failure-modes-agentic"
       },
       {
-        "text": "Prompt Injection and the PVE Defense",
+        "text": "提示注入与 PVE 防御",
         "link": "/phases/14-agent-engineering/27-prompt-injection-defense"
       },
       {
-        "text": "Orchestration Patterns: Supervisor, Swarm, Hierarchical",
+        "text": "编排模式：监督者、群体式、分层式",
         "link": "/phases/14-agent-engineering/28-orchestration-patterns"
       },
       {
-        "text": "Production Runtimes: Queue, Event, Cron",
+        "text": "生产运行时：队列、事件与 Cron",
         "link": "/phases/14-agent-engineering/29-production-runtimes"
       },
       {
-        "text": "Eval-Driven Agent Development",
+        "text": "以评估驱动的智能体开发",
         "link": "/phases/14-agent-engineering/30-eval-driven-agent-development"
       },
       {
-        "text": "Agent Workbench Engineering: Why Capable Models Still Fail",
+        "text": "智能体工作台工程：为什么强模型仍会失败",
         "link": "/phases/14-agent-engineering/31-agent-workbench-why-models-fail"
       },
       {
-        "text": "The Minimal Agent Workbench",
+        "text": "最小化智能体工作台",
         "link": "/phases/14-agent-engineering/32-minimal-agent-workbench"
       },
       {
-        "text": "Agent Instructions as Executable Constraints",
+        "text": "作为可执行约束的智能体指令",
         "link": "/phases/14-agent-engineering/33-instructions-as-executable-constraints"
       },
       {
-        "text": "Repo Memory and Durable State",
+        "text": "仓库记忆与持久状态",
         "link": "/phases/14-agent-engineering/34-repo-memory-and-state"
       },
       {
-        "text": "Initialization Scripts for Agents",
+        "text": "面向智能体的初始化脚本",
         "link": "/phases/14-agent-engineering/35-initialization-scripts"
       },
       {
-        "text": "Scope Contracts and Task Boundaries",
+        "text": "范围契约与任务边界",
         "link": "/phases/14-agent-engineering/36-scope-contracts"
       },
       {
-        "text": "Runtime Feedback Loops",
+        "text": "运行时反馈循环",
         "link": "/phases/14-agent-engineering/37-runtime-feedback-loops"
       },
       {
-        "text": "Verification Gates",
+        "text": "验证闸门",
         "link": "/phases/14-agent-engineering/38-verification-gates"
       },
       {
-        "text": "Reviewer Agent: Separate Builder from Marker",
+        "text": "评审智能体：构建者与评分者分离",
         "link": "/phases/14-agent-engineering/39-reviewer-agent"
       },
       {
-        "text": "Multi-Session Handoff",
+        "text": "多会话交接",
         "link": "/phases/14-agent-engineering/40-multi-session-handoff"
       },
       {
-        "text": "The Workbench on a Real Repo",
+        "text": "真实仓库中的工作台",
         "link": "/phases/14-agent-engineering/41-workbench-for-real-repos"
       },
       {
-        "text": "Capstone: Ship a Reusable Agent Workbench Pack",
+        "text": "毕业项目：交付可复用的智能体工作台包",
         "link": "/phases/14-agent-engineering/42-agent-workbench-capstone"
       }
     ]
@@ -1346,91 +1346,91 @@
     "collapsed": true,
     "items": [
       {
-        "text": "The Shift from Chatbots to Long-Horizon Agents",
+        "text": "从聊天机器人到长程智能体的转变",
         "link": "/phases/15-autonomous-systems/01-long-horizon-agents"
       },
       {
-        "text": "STaR, V-STaR, Quiet-STaR — Self-Taught Reasoning",
+        "text": "STaR、V-STaR、Quiet-STaR：自我习得推理",
         "link": "/phases/15-autonomous-systems/02-star-family-reasoning"
       },
       {
-        "text": "AlphaEvolve — Evolutionary Coding Agents",
+        "text": "AlphaEvolve：进化式编码智能体",
         "link": "/phases/15-autonomous-systems/03-alphaevolve-evolutionary-coding"
       },
       {
-        "text": "Darwin Godel Machine — Open-Ended Self-Modifying Agents",
+        "text": "Darwin Godel Machine：开放式自我修改智能体",
         "link": "/phases/15-autonomous-systems/04-darwin-godel-machine"
       },
       {
-        "text": "AI Scientist v2 — Workshop-Level Autonomous Research",
+        "text": "AI Scientist v2：研讨会级自主研究",
         "link": "/phases/15-autonomous-systems/05-ai-scientist-v2"
       },
       {
-        "text": "Automated Alignment Research (Anthropic AAR)",
+        "text": "自动化对齐研究（Anthropic AAR）",
         "link": "/phases/15-autonomous-systems/06-automated-alignment-research"
       },
       {
-        "text": "Recursive Self-Improvement — Capability vs Alignment",
+        "text": "递归自我改进：能力 vs 对齐",
         "link": "/phases/15-autonomous-systems/07-recursive-self-improvement"
       },
       {
-        "text": "Bounded Self-Improvement Designs",
+        "text": "有界自我改进设计",
         "link": "/phases/15-autonomous-systems/08-bounded-self-improvement"
       },
       {
-        "text": "The Autonomous Coding Agent Landscape (2026)",
+        "text": "自主编码智能体全景（2026）",
         "link": "/phases/15-autonomous-systems/09-coding-agent-landscape"
       },
       {
-        "text": "Claude Code as an Autonomous Agent: Permission Modes and Auto Mode",
+        "text": "将 Claude Code 作为自主智能体：权限模式与自动模式",
         "link": "/phases/15-autonomous-systems/10-claude-code-permission-modes"
       },
       {
-        "text": "Browser Agents and Long-Horizon Web Tasks",
+        "text": "浏览器智能体与长程 Web 任务",
         "link": "/phases/15-autonomous-systems/11-browser-agents"
       },
       {
-        "text": "Long-Running Background Agents: Durable Execution",
+        "text": "长时运行的后台智能体：持久化执行",
         "link": "/phases/15-autonomous-systems/12-durable-execution"
       },
       {
-        "text": "Action Budgets, Iteration Caps, and Cost Governors",
+        "text": "动作预算、迭代上限与成本治理",
         "link": "/phases/15-autonomous-systems/13-cost-governors"
       },
       {
-        "text": "Kill Switches, Circuit Breakers, and Canary Tokens",
+        "text": "熔断开关、断路器与 Canary Tokens",
         "link": "/phases/15-autonomous-systems/14-kill-switches-canaries"
       },
       {
-        "text": "Human-in-the-Loop: Propose-Then-Commit",
+        "text": "人在回路中：先提议后提交",
         "link": "/phases/15-autonomous-systems/15-propose-then-commit"
       },
       {
-        "text": "Checkpoints and Rollback",
+        "text": "检查点与回滚",
         "link": "/phases/15-autonomous-systems/16-checkpoints-rollback"
       },
       {
-        "text": "Constitutional AI and Rule Overrides",
+        "text": "Constitutional AI 与规则覆盖",
         "link": "/phases/15-autonomous-systems/17-constitutional-ai"
       },
       {
-        "text": "Llama Guard and Input/Output Classification",
+        "text": "Llama Guard 与输入/输出分类",
         "link": "/phases/15-autonomous-systems/18-llama-guard"
       },
       {
-        "text": "Anthropic Responsible Scaling Policy v3.0",
+        "text": "Anthropic 负责任扩展政策 v3.0",
         "link": "/phases/15-autonomous-systems/19-anthropic-rsp"
       },
       {
-        "text": "OpenAI Preparedness Framework and DeepMind Frontier Safety Framework",
+        "text": "OpenAI Preparedness Framework 与 DeepMind Frontier Safety Framework",
         "link": "/phases/15-autonomous-systems/20-openai-preparedness-deepmind-fsf"
       },
       {
-        "text": "METR Time Horizons and External Capability Evaluation",
+        "text": "METR 时间跨度与外部能力评估",
         "link": "/phases/15-autonomous-systems/21-metr-external-evaluation"
       },
       {
-        "text": "CAIS, CAISI, and Societal-Scale Risk",
+        "text": "CAIS、CAISI 与社会规模风险",
         "link": "/phases/15-autonomous-systems/22-cais-caisi-societal-risk"
       }
     ]
@@ -1440,103 +1440,103 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Why Multi-Agent?",
+        "text": "为什么要用多智能体？",
         "link": "/phases/16-multi-agent-and-swarms/01-why-multi-agent"
       },
       {
-        "text": "Heritage of FIPA-ACL and Speech Acts",
+        "text": "FIPA-ACL 与言语行为理论的渊源",
         "link": "/phases/16-multi-agent-and-swarms/02-fipa-acl-heritage"
       },
       {
-        "text": "Communication Protocols",
+        "text": "通信协议",
         "link": "/phases/16-multi-agent-and-swarms/03-communication-protocols"
       },
       {
-        "text": "The Multi-Agent Primitive Model",
+        "text": "多智能体原语模型",
         "link": "/phases/16-multi-agent-and-swarms/04-primitive-model"
       },
       {
-        "text": "Supervisor / Orchestrator-Worker Pattern",
+        "text": "监督者 / 编排者-工作者模式",
         "link": "/phases/16-multi-agent-and-swarms/05-supervisor-orchestrator-pattern"
       },
       {
-        "text": "Hierarchical Architecture and Its Failure Mode",
+        "text": "层级架构及其失效模式",
         "link": "/phases/16-multi-agent-and-swarms/06-hierarchical-architecture"
       },
       {
-        "text": "Society of Mind and Multi-Agent Debate",
+        "text": "心智社会与多智能体辩论",
         "link": "/phases/16-multi-agent-and-swarms/07-society-of-mind-debate"
       },
       {
-        "text": "Role Specialization — Planner, Critic, Executor, Verifier",
+        "text": "角色专门化——规划者、批评者、执行者、验证者",
         "link": "/phases/16-multi-agent-and-swarms/08-role-specialization"
       },
       {
-        "text": "Parallel / Swarm / Networked Architectures",
+        "text": "并行 / 群体 / 网络化架构",
         "link": "/phases/16-multi-agent-and-swarms/09-parallel-swarm-networks"
       },
       {
-        "text": "Group Chat and Speaker Selection",
+        "text": "群聊与发言者选择",
         "link": "/phases/16-multi-agent-and-swarms/10-group-chat-speaker-selection"
       },
       {
-        "text": "Handoffs and Routines — Stateless Orchestration",
+        "text": "交接与例程——无状态编排",
         "link": "/phases/16-multi-agent-and-swarms/11-handoffs-and-routines"
       },
       {
-        "text": "A2A — The Agent-to-Agent Protocol",
+        "text": "A2A——智能体到智能体协议",
         "link": "/phases/16-multi-agent-and-swarms/12-a2a-protocol"
       },
       {
-        "text": "Shared Memory and Blackboard Patterns",
+        "text": "共享记忆与黑板模式",
         "link": "/phases/16-multi-agent-and-swarms/13-shared-memory-blackboard"
       },
       {
-        "text": "Consensus and Byzantine Fault Tolerance for Agents",
+        "text": "面向智能体的共识与拜占庭容错",
         "link": "/phases/16-multi-agent-and-swarms/14-consensus-and-bft"
       },
       {
-        "text": "Voting, Self-Consistency, and Debate Topology",
+        "text": "投票、自一致性与辩论拓扑",
         "link": "/phases/16-multi-agent-and-swarms/15-voting-debate-topology"
       },
       {
-        "text": "Negotiation and Bargaining",
+        "text": "协商与议价",
         "link": "/phases/16-multi-agent-and-swarms/16-negotiation-bargaining"
       },
       {
-        "text": "Generative Agents and Emergent Simulation",
+        "text": "生成式智能体与涌现仿真",
         "link": "/phases/16-multi-agent-and-swarms/17-generative-agents-simulation"
       },
       {
-        "text": "Theory of Mind and Emergent Coordination",
+        "text": "心智理论与涌现协同",
         "link": "/phases/16-multi-agent-and-swarms/18-theory-of-mind-coordination"
       },
       {
-        "text": "Swarm Optimization for LLMs (PSO, ACO)",
+        "text": "面向 LLM 的群体优化（PSO、ACO）",
         "link": "/phases/16-multi-agent-and-swarms/19-swarm-optimization-pso-aco"
       },
       {
-        "text": "MARL — MADDPG, QMIX, MAPPO",
+        "text": "MARL——MADDPG、QMIX、MAPPO",
         "link": "/phases/16-multi-agent-and-swarms/20-marl-maddpg-qmix-mappo"
       },
       {
-        "text": "Agent Economies, Token Incentives, Reputation",
+        "text": "智能体经济、代币激励与声誉",
         "link": "/phases/16-multi-agent-and-swarms/21-agent-economies"
       },
       {
-        "text": "Production Scaling — Queues, Checkpoints, Durability",
+        "text": "生产级扩展——队列、检查点与持久性",
         "link": "/phases/16-multi-agent-and-swarms/22-production-scaling-queues-checkpoints"
       },
       {
-        "text": "Failure Modes — MAST, Groupthink, Monoculture, Cascading Errors",
+        "text": "失效模式——MAST、群体思维、单一化、级联错误",
         "link": "/phases/16-multi-agent-and-swarms/23-failure-modes-mast-groupthink"
       },
       {
-        "text": "Evaluation and Coordination Benchmarks",
+        "text": "评测与协同基准",
         "link": "/phases/16-multi-agent-and-swarms/24-evaluation-coordination-benchmarks"
       },
       {
-        "text": "Case Studies and the 2026 State of the Art",
+        "text": "案例研究与 2026 年前沿水平",
         "link": "/phases/16-multi-agent-and-swarms/25-case-studies-2026-sota"
       }
     ]
@@ -1546,115 +1546,115 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Managed LLM Platforms — Bedrock, Vertex AI, Azure OpenAI",
+        "text": "托管式 LLM 平台——Bedrock、Vertex AI、Azure OpenAI",
         "link": "/phases/17-infrastructure-and-production/01-managed-llm-platforms"
       },
       {
-        "text": "Inference Platform Economics — Fireworks, Together, Baseten, Modal, Replicate, Anyscale",
+        "text": "推理平台经济学——Fireworks、Together、Baseten、Modal、Replicate、Anyscale",
         "link": "/phases/17-infrastructure-and-production/02-inference-platform-economics"
       },
       {
-        "text": "GPU Autoscaling on Kubernetes — Karpenter, KAI Scheduler, Gang Scheduling",
+        "text": "Kubernetes 上的 GPU 自动扩缩容——Karpenter、KAI Scheduler、Gang Scheduling",
         "link": "/phases/17-infrastructure-and-production/03-gpu-autoscaling-kubernetes"
       },
       {
-        "text": "vLLM Serving Internals: PagedAttention, Continuous Batching, Chunked Prefill",
+        "text": "vLLM 服务内部原理：PagedAttention、Continuous Batching、Chunked Prefill",
         "link": "/phases/17-infrastructure-and-production/04-vllm-serving-internals"
       },
       {
-        "text": "EAGLE-3 Speculative Decoding in Production",
+        "text": "生产环境中的 EAGLE-3 推测解码",
         "link": "/phases/17-infrastructure-and-production/05-eagle3-speculative-decoding"
       },
       {
-        "text": "SGLang and RadixAttention for Prefix-Heavy Workloads",
+        "text": "面向前缀密集型负载的 SGLang 与 RadixAttention",
         "link": "/phases/17-infrastructure-and-production/06-sglang-radixattention"
       },
       {
-        "text": "TensorRT-LLM on Blackwell with FP8 and NVFP4",
+        "text": "Blackwell 上的 TensorRT-LLM：FP8 与 NVFP4",
         "link": "/phases/17-infrastructure-and-production/07-tensorrt-llm-blackwell"
       },
       {
-        "text": "Inference Metrics — TTFT, TPOT, ITL, Goodput, P99",
+        "text": "推理指标——TTFT、TPOT、ITL、Goodput、P99",
         "link": "/phases/17-infrastructure-and-production/08-inference-metrics-goodput"
       },
       {
-        "text": "Production Quantization — AWQ, GPTQ, GGUF K-quants, FP8, MXFP4/NVFP4",
+        "text": "生产级量化——AWQ、GPTQ、GGUF K-quants、FP8、MXFP4/NVFP4",
         "link": "/phases/17-infrastructure-and-production/09-production-quantization"
       },
       {
-        "text": "Cold Start Mitigation for Serverless LLMs",
+        "text": "Serverless LLM 的冷启动缓解",
         "link": "/phases/17-infrastructure-and-production/10-cold-start-mitigation"
       },
       {
-        "text": "Multi-Region LLM Serving and KV Cache Locality",
+        "text": "多区域 LLM 服务与 KV Cache 局部性",
         "link": "/phases/17-infrastructure-and-production/11-multi-region-kv-locality"
       },
       {
-        "text": "Edge Inference — Apple Neural Engine, Qualcomm Hexagon, WebGPU/WebLLM, Jetson",
+        "text": "边缘推理——Apple Neural Engine、Qualcomm Hexagon、WebGPU/WebLLM、Jetson",
         "link": "/phases/17-infrastructure-and-production/12-edge-inference"
       },
       {
-        "text": "LLM Observability Stack Selection",
+        "text": "LLM 可观测性技术栈选型",
         "link": "/phases/17-infrastructure-and-production/13-llm-observability"
       },
       {
-        "text": "Prompt Caching and Semantic Caching Economics",
+        "text": "Prompt 缓存与语义缓存经济学",
         "link": "/phases/17-infrastructure-and-production/14-prompt-semantic-caching"
       },
       {
-        "text": "Batch APIs — the 50% Discount as Industry Standard",
+        "text": "Batch API——50% 折扣成为行业标准",
         "link": "/phases/17-infrastructure-and-production/15-batch-apis"
       },
       {
-        "text": "Model Routing as a Cost-Reduction Primitive",
+        "text": "模型路由作为降本原语",
         "link": "/phases/17-infrastructure-and-production/16-model-routing"
       },
       {
-        "text": "Disaggregated Prefill/Decode — NVIDIA Dynamo and llm-d",
+        "text": "解耦式 Prefill/Decode——NVIDIA Dynamo 与 llm-d",
         "link": "/phases/17-infrastructure-and-production/17-disaggregated-prefill-decode"
       },
       {
-        "text": "vLLM Production Stack with LMCache KV Offloading",
+        "text": "带 LMCache KV 卸载的 vLLM 生产栈",
         "link": "/phases/17-infrastructure-and-production/18-vllm-production-stack-lmcache"
       },
       {
-        "text": "AI Gateways — LiteLLM, Portkey, Kong AI Gateway, Bifrost",
+        "text": "AI 网关——LiteLLM、Portkey、Kong AI Gateway、Bifrost",
         "link": "/phases/17-infrastructure-and-production/19-ai-gateways"
       },
       {
-        "text": "Shadow Traffic, Canary Rollout, and Progressive Deployment for LLMs",
+        "text": "面向 LLM 的影子流量、金丝雀发布与渐进式部署",
         "link": "/phases/17-infrastructure-and-production/20-shadow-canary-progressive"
       },
       {
-        "text": "A/B Testing LLM Features — GrowthBook, Statsig, and the Vibes Problem",
+        "text": "LLM 功能的 A/B 测试——GrowthBook、Statsig 与 Vibes 问题",
         "link": "/phases/17-infrastructure-and-production/21-ab-testing-llm-features"
       },
       {
-        "text": "Load Testing LLM APIs — Why k6 and Locust Lie",
+        "text": "LLM API 压测——为什么 k6 和 Locust 会“说谎”",
         "link": "/phases/17-infrastructure-and-production/22-load-testing-llm-apis"
       },
       {
-        "text": "SRE for AI — Multi-Agent Incident Response, Runbooks, Predictive Detection",
+        "text": "AI 的 SRE——多智能体故障响应、运行手册与预测式检测",
         "link": "/phases/17-infrastructure-and-production/23-sre-for-ai"
       },
       {
-        "text": "Chaos Engineering for LLM Production",
+        "text": "面向 LLM 生产环境的混沌工程",
         "link": "/phases/17-infrastructure-and-production/24-chaos-engineering-llm"
       },
       {
-        "text": "Security — Secrets, API Key Rotation, Audit Logs, Guardrails",
+        "text": "安全——凭据、API Key 轮换、审计日志与护栏",
         "link": "/phases/17-infrastructure-and-production/25-security-secrets-audit"
       },
       {
-        "text": "Compliance — SOC 2, HIPAA, GDPR, PCI-DSS, EU AI Act, ISO 42001",
+        "text": "合规——SOC 2、HIPAA、GDPR、PCI-DSS、EU AI Act、ISO 42001",
         "link": "/phases/17-infrastructure-and-production/26-compliance-frameworks"
       },
       {
-        "text": "FinOps for LLMs — Unit Economics and Multi-Tenant Attribution",
+        "text": "LLM 的 FinOps——单位经济学与多租户归因",
         "link": "/phases/17-infrastructure-and-production/27-finops-llms"
       },
       {
-        "text": "Self-Hosted Serving Selection — llama.cpp, Ollama, TGI, vLLM, SGLang",
+        "text": "自托管服务选型——llama.cpp、Ollama、TGI、vLLM、SGLang",
         "link": "/phases/17-infrastructure-and-production/28-self-hosted-serving-selection"
       }
     ]
@@ -1664,123 +1664,123 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Instruction-Following as Alignment Signal",
+        "text": "指令遵循作为对齐信号",
         "link": "/phases/18-ethics-safety-alignment/01-instruction-following-alignment-signal"
       },
       {
-        "text": "Reward Hacking and Goodhart's Law",
+        "text": "奖励黑客与 Goodhart 定律",
         "link": "/phases/18-ethics-safety-alignment/02-reward-hacking-goodhart"
       },
       {
-        "text": "The Direct Preference Optimization Family",
+        "text": "直接偏好优化（DPO）家族",
         "link": "/phases/18-ethics-safety-alignment/03-direct-preference-optimization-family"
       },
       {
-        "text": "Sycophancy as RLHF Amplification",
+        "text": "谄媚：RLHF 的放大效应",
         "link": "/phases/18-ethics-safety-alignment/04-sycophancy-rlhf-amplification"
       },
       {
-        "text": "Constitutional AI and RLAIF",
+        "text": "Constitutional AI 与 RLAIF",
         "link": "/phases/18-ethics-safety-alignment/05-constitutional-ai-rlaif"
       },
       {
-        "text": "Mesa-Optimization and Deceptive Alignment",
+        "text": "Mesa 优化与欺骗性对齐",
         "link": "/phases/18-ethics-safety-alignment/06-mesa-optimization-deceptive-alignment"
       },
       {
-        "text": "Sleeper Agents — Persistent Deception",
+        "text": "潜伏智能体：持续性欺骗",
         "link": "/phases/18-ethics-safety-alignment/07-sleeper-agents-persistent-deception"
       },
       {
-        "text": "In-Context Scheming in Frontier Models",
+        "text": "前沿模型中的上下文内谋划",
         "link": "/phases/18-ethics-safety-alignment/08-in-context-scheming-frontier-models"
       },
       {
-        "text": "Alignment Faking",
+        "text": "对齐伪装",
         "link": "/phases/18-ethics-safety-alignment/09-alignment-faking"
       },
       {
-        "text": "AI Control — Safety Despite Subversion",
+        "text": "AI Control：即使被颠覆也能保持安全",
         "link": "/phases/18-ethics-safety-alignment/10-ai-control-subversion"
       },
       {
-        "text": "Scalable Oversight and Weak-to-Strong Generalization",
+        "text": "可扩展监督与弱到强泛化",
         "link": "/phases/18-ethics-safety-alignment/11-scalable-oversight-weak-to-strong"
       },
       {
-        "text": "Red-Teaming: PAIR and Automated Attacks",
+        "text": "红队演练：PAIR 与自动化攻击",
         "link": "/phases/18-ethics-safety-alignment/12-red-teaming-pair-automated-attacks"
       },
       {
-        "text": "Many-Shot Jailbreaking",
+        "text": "多示例越狱",
         "link": "/phases/18-ethics-safety-alignment/13-many-shot-jailbreaking"
       },
       {
-        "text": "ASCII Art and Visual Jailbreaks",
+        "text": "ASCII Art 与视觉越狱",
         "link": "/phases/18-ethics-safety-alignment/14-ascii-art-visual-jailbreaks"
       },
       {
-        "text": "Indirect Prompt Injection — Production Attack Surface",
+        "text": "间接提示注入：生产环境攻击面",
         "link": "/phases/18-ethics-safety-alignment/15-indirect-prompt-injection"
       },
       {
-        "text": "Red-Team Tooling — Garak, Llama Guard, PyRIT",
+        "text": "红队工具：Garak、Llama Guard、PyRIT",
         "link": "/phases/18-ethics-safety-alignment/16-red-team-tooling-garak-llamaguard-pyrit"
       },
       {
-        "text": "WMDP and Dual-Use Capability Evaluation",
+        "text": "WMDP 与两用能力评估",
         "link": "/phases/18-ethics-safety-alignment/17-wmdp-dual-use-evaluation"
       },
       {
-        "text": "Frontier Safety Frameworks — RSP, PF, FSF",
+        "text": "前沿安全框架：RSP、PF、FSF",
         "link": "/phases/18-ethics-safety-alignment/18-frontier-safety-frameworks-rsp-pf-fsf"
       },
       {
-        "text": "Anthropic's Model Welfare Program",
+        "text": "Anthropic 的模型福利计划",
         "link": "/phases/18-ethics-safety-alignment/19-model-welfare-research"
       },
       {
-        "text": "Bias and Representational Harm in LLMs",
+        "text": "LLM 中的偏见与表征性伤害",
         "link": "/phases/18-ethics-safety-alignment/20-bias-representational-harm"
       },
       {
-        "text": "Fairness Criteria — Group, Individual, Counterfactual",
+        "text": "公平性标准：群体、个体、反事实",
         "link": "/phases/18-ethics-safety-alignment/21-fairness-criteria-group-individual-counterfactual"
       },
       {
-        "text": "Differential Privacy for LLMs",
+        "text": "LLM 的差分隐私",
         "link": "/phases/18-ethics-safety-alignment/22-differential-privacy-for-llms"
       },
       {
-        "text": "Watermarking — SynthID, Stable Signature, C2PA",
+        "text": "水印技术：SynthID、Stable Signature、C2PA",
         "link": "/phases/18-ethics-safety-alignment/23-watermarking-synthid-stable-signature-c2pa"
       },
       {
-        "text": "Regulatory Frameworks — EU, US, UK, Korea",
+        "text": "监管框架：欧盟、美国、英国、韩国",
         "link": "/phases/18-ethics-safety-alignment/24-regulatory-frameworks-eu-us-uk-korea"
       },
       {
-        "text": "EchoLeak and the Emergence of CVEs for AI",
+        "text": "EchoLeak 与 AI 领域 CVE 的出现",
         "link": "/phases/18-ethics-safety-alignment/25-echoleak-cves-for-ai"
       },
       {
-        "text": "Model, System, and Dataset Cards",
+        "text": "模型卡、系统卡与数据集卡",
         "link": "/phases/18-ethics-safety-alignment/26-model-system-dataset-cards"
       },
       {
-        "text": "Data Provenance and Training-Data Governance",
+        "text": "数据溯源与训练数据治理",
         "link": "/phases/18-ethics-safety-alignment/27-data-provenance-training-governance"
       },
       {
-        "text": "Alignment Research Ecosystem — MATS, Redwood, Apollo, METR",
+        "text": "对齐研究生态：MATS、Redwood、Apollo、METR",
         "link": "/phases/18-ethics-safety-alignment/28-alignment-research-ecosystem"
       },
       {
-        "text": "Moderation Systems — OpenAI, Perspective, Llama Guard",
+        "text": "内容审核系统：OpenAI、Perspective、Llama Guard",
         "link": "/phases/18-ethics-safety-alignment/29-moderation-systems-openai-perspective-llamaguard"
       },
       {
-        "text": "Dual-Use Risk — Cyber, Bio, Chem, Nuclear Uplift",
+        "text": "两用风险：网络、生物、化学、核能力增强",
         "link": "/phases/18-ethics-safety-alignment/30-dual-use-risk-cyber-bio-chem-nuclear"
       }
     ]
@@ -1790,223 +1790,223 @@
     "collapsed": true,
     "items": [
       {
-        "text": "Capstone 01 — Terminal-Native Coding Agent",
+        "text": "毕业项目 01：终端原生编码智能体",
         "link": "/phases/19-capstone-projects/01-terminal-native-coding-agent"
       },
       {
-        "text": "Capstone 02 — RAG over Codebase (Cross-Repo Semantic Search)",
+        "text": "毕业项目 02：代码库上的 RAG（跨仓库语义搜索）",
         "link": "/phases/19-capstone-projects/02-rag-over-codebase"
       },
       {
-        "text": "Capstone 03 — Real-Time Voice Assistant (ASR to LLM to TTS)",
+        "text": "毕业项目 03：实时语音助手（ASR→LLM→TTS）",
         "link": "/phases/19-capstone-projects/03-realtime-voice-assistant"
       },
       {
-        "text": "Capstone 04 — Multimodal Document QA (Vision-First PDF, Tables, Charts)",
+        "text": "毕业项目 04：多模态文档问答（视觉优先 PDF、表格、图表）",
         "link": "/phases/19-capstone-projects/04-multimodal-document-qa"
       },
       {
-        "text": "Capstone 05 — Autonomous Research Agent (AI-Scientist Class)",
+        "text": "毕业项目 05：自主研究智能体（AI Scientist 类）",
         "link": "/phases/19-capstone-projects/05-autonomous-research-agent"
       },
       {
-        "text": "Capstone 06 — DevOps Troubleshooting Agent for Kubernetes",
+        "text": "毕业项目 06：面向 Kubernetes 的 DevOps 故障排查智能体",
         "link": "/phases/19-capstone-projects/06-devops-troubleshooting-agent"
       },
       {
-        "text": "Capstone 07 — End-to-End Fine-Tuning Pipeline (Data to SFT to DPO to Serve)",
+        "text": "毕业项目 07：端到端微调流水线（数据→SFT→DPO→服务）",
         "link": "/phases/19-capstone-projects/07-end-to-end-fine-tuning-pipeline"
       },
       {
-        "text": "Capstone 08 — Production RAG Chatbot for a Regulated Vertical",
+        "text": "毕业项目 08：面向受监管垂直领域的生产级 RAG 聊天机器人",
         "link": "/phases/19-capstone-projects/08-production-rag-chatbot"
       },
       {
-        "text": "Capstone 09 — Code Migration Agent (Repo-Level Language / Runtime Upgrade)",
+        "text": "毕业项目 09：代码迁移智能体（仓库级语言/运行时升级）",
         "link": "/phases/19-capstone-projects/09-code-migration-agent"
       },
       {
-        "text": "Capstone 10 — Multi-Agent Software Engineering Team",
+        "text": "毕业项目 10：多智能体软件工程团队",
         "link": "/phases/19-capstone-projects/10-multi-agent-software-team"
       },
       {
-        "text": "Capstone 11 — LLM Observability & Eval Dashboard",
+        "text": "毕业项目 11：LLM 可观测性与评测仪表盘",
         "link": "/phases/19-capstone-projects/11-llm-observability-dashboard"
       },
       {
-        "text": "Capstone 12 — Video Understanding Pipeline (Scene, QA, Search)",
+        "text": "毕业项目 12：视频理解流水线（场景、问答、搜索）",
         "link": "/phases/19-capstone-projects/12-video-understanding-pipeline"
       },
       {
-        "text": "Capstone 13 — MCP Server with Registry and Governance",
+        "text": "毕业项目 13：带注册表与治理的 MCP Server",
         "link": "/phases/19-capstone-projects/13-mcp-server-with-registry"
       },
       {
-        "text": "Capstone 14 — Speculative-Decoding Inference Server",
+        "text": "毕业项目 14：推测解码推理服务",
         "link": "/phases/19-capstone-projects/14-speculative-decoding-server"
       },
       {
-        "text": "Capstone 15 — Constitutional Safety Harness + Red-Team Range",
+        "text": "毕业项目 15：宪法式安全护栏 + 红队演练场",
         "link": "/phases/19-capstone-projects/15-constitutional-safety-harness"
       },
       {
-        "text": "Capstone 16 — GitHub Issue-to-PR Autonomous Agent",
+        "text": "毕业项目 16：GitHub Issue 到 PR 的自主智能体",
         "link": "/phases/19-capstone-projects/16-github-issue-to-pr-agent"
       },
       {
-        "text": "Capstone 17 — Personal AI Tutor (Adaptive, Multimodal, with Memory)",
+        "text": "毕业项目 17：个人 AI 导师（自适应、多模态、带记忆）",
         "link": "/phases/19-capstone-projects/17-personal-ai-tutor"
       },
       {
-        "text": "Agent Harness Loop Contract",
+        "text": "智能体运行框架循环契约",
         "link": "/phases/19-capstone-projects/20-agent-harness-loop-contract"
       },
       {
-        "text": "Tool Registry with Schema Validation",
+        "text": "带 Schema 验证的工具注册表",
         "link": "/phases/19-capstone-projects/21-tool-registry-schema-validation"
       },
       {
-        "text": "JSON-RPC 2.0 Over Newline-Delimited Stdio",
+        "text": "基于换行分隔 stdio 的 JSON-RPC 2.0",
         "link": "/phases/19-capstone-projects/22-jsonrpc-stdio-transport"
       },
       {
-        "text": "Function Call Dispatcher",
+        "text": "函数调用调度器",
         "link": "/phases/19-capstone-projects/23-function-call-dispatcher"
       },
       {
-        "text": "Plan-Execute Control Flow",
+        "text": "计划-执行控制流",
         "link": "/phases/19-capstone-projects/24-plan-execute-control-flow"
       },
       {
-        "text": "Capstone Lesson 25: Verification Gates and the Observation Budget",
+        "text": "毕业项目课 25：验证关卡与观察预算",
         "link": "/phases/19-capstone-projects/25-verification-gates-observation-budget"
       },
       {
-        "text": "Capstone Lesson 26: Sandbox Runner with Denylist and Path Jail",
+        "text": "毕业项目课 26：带拒绝名单与路径隔离的沙箱运行器",
         "link": "/phases/19-capstone-projects/26-sandbox-runner-denylist"
       },
       {
-        "text": "Capstone Lesson 27: Eval Harness with Fixture Tasks",
+        "text": "毕业项目课 27：带固定任务的评测运行框架",
         "link": "/phases/19-capstone-projects/27-eval-harness-fixture-tasks"
       },
       {
-        "text": "Capstone Lesson 28: Observability with OTel GenAI Spans and Prometheus Metrics",
+        "text": "毕业项目课 28：用 OTel GenAI Spans 与 Prometheus 指标实现可观测性",
         "link": "/phases/19-capstone-projects/28-observability-otel-traces"
       },
       {
-        "text": "Capstone Lesson 29: End-to-End Coding Agent on the Harness",
+        "text": "毕业项目课 29：基于运行框架的端到端编码智能体",
         "link": "/phases/19-capstone-projects/29-end-to-end-coding-task-demo"
       },
       {
-        "text": "BPE Tokenizer From Scratch",
+        "text": "从零实现 BPE 分词器",
         "link": "/phases/19-capstone-projects/30-bpe-tokenizer-from-scratch"
       },
       {
-        "text": "Tokenized Dataset with Sliding Window",
+        "text": "滑动窗口分词数据集",
         "link": "/phases/19-capstone-projects/31-tokenized-dataset-sliding-window"
       },
       {
-        "text": "Token and Positional Embeddings",
+        "text": "词元嵌入与位置嵌入",
         "link": "/phases/19-capstone-projects/32-token-positional-embeddings"
       },
       {
-        "text": "Multi-Head Self-Attention",
+        "text": "多头自注意力",
         "link": "/phases/19-capstone-projects/33-multihead-self-attention"
       },
       {
-        "text": "Transformer Block from Scratch",
+        "text": "从零实现 Transformer 块",
         "link": "/phases/19-capstone-projects/34-transformer-block"
       },
       {
-        "text": "GPT Model Assembly",
+        "text": "GPT 模型组装",
         "link": "/phases/19-capstone-projects/35-gpt-model-assembly"
       },
       {
-        "text": "Training Loop and Evaluation",
+        "text": "训练循环与评估",
         "link": "/phases/19-capstone-projects/36-training-loop-eval"
       },
       {
-        "text": "Loading Pretrained Weights",
+        "text": "加载预训练权重",
         "link": "/phases/19-capstone-projects/37-loading-pretrained-weights"
       },
       {
-        "text": "Capstone Lesson 38: Classifier Fine-Tuning by Head Swap",
+        "text": "毕业项目课 38：通过头部替换进行分类器微调",
         "link": "/phases/19-capstone-projects/38-classifier-finetuning"
       },
       {
-        "text": "Capstone Lesson 39: Instruction Tuning by Supervised Fine-Tuning",
+        "text": "毕业项目课 39：通过 SFT 进行指令微调",
         "link": "/phases/19-capstone-projects/39-instruction-tuning-sft"
       },
       {
-        "text": "Capstone Lesson 40: Direct Preference Optimization from Scratch",
+        "text": "毕业项目课 40：从零实现 DPO",
         "link": "/phases/19-capstone-projects/40-dpo-from-scratch"
       },
       {
-        "text": "Capstone Lesson 41: Full Evaluation Pipeline",
+        "text": "毕业项目课 41：完整评估流水线",
         "link": "/phases/19-capstone-projects/41-eval-pipeline"
       },
       {
-        "text": "Large Corpus Downloader",
+        "text": "大型语料库下载器",
         "link": "/phases/19-capstone-projects/42-large-corpus-downloader"
       },
       {
-        "text": "HDF5 Tokenized Corpus",
+        "text": "HDF5 分词语料库",
         "link": "/phases/19-capstone-projects/43-hdf5-tokenized-corpus"
       },
       {
-        "text": "Cosine LR with Linear Warmup",
+        "text": "带线性预热的余弦学习率",
         "link": "/phases/19-capstone-projects/44-cosine-lr-warmup"
       },
       {
-        "text": "Gradient Clipping and Mixed Precision",
+        "text": "梯度裁剪与混合精度",
         "link": "/phases/19-capstone-projects/45-gradient-clipping-amp"
       },
       {
-        "text": "Gradient Accumulation",
+        "text": "梯度累积",
         "link": "/phases/19-capstone-projects/46-gradient-accumulation"
       },
       {
-        "text": "Checkpoint Save and Resume",
+        "text": "检查点保存与恢复",
         "link": "/phases/19-capstone-projects/47-checkpoint-save-resume"
       },
       {
-        "text": "Distributed Data Parallel and FSDP from Scratch",
+        "text": "从零实现 DDP 与 FSDP",
         "link": "/phases/19-capstone-projects/48-distributed-fsdp-ddp"
       },
       {
-        "text": "Language Model Evaluation Harness",
+        "text": "语言模型评测框架",
         "link": "/phases/19-capstone-projects/49-lm-eval-harness"
       },
       {
-        "text": "Hypothesis Generator",
+        "text": "假设生成器",
         "link": "/phases/19-capstone-projects/50-hypothesis-generator"
       },
       {
-        "text": "Literature Retrieval",
+        "text": "文献检索",
         "link": "/phases/19-capstone-projects/51-literature-retrieval"
       },
       {
-        "text": "Experiment Runner",
+        "text": "实验运行器",
         "link": "/phases/19-capstone-projects/52-experiment-runner"
       },
       {
-        "text": "Result Evaluator",
+        "text": "结果评估器",
         "link": "/phases/19-capstone-projects/53-result-evaluator"
       },
       {
-        "text": "Paper Writer",
+        "text": "论文撰写器",
         "link": "/phases/19-capstone-projects/54-paper-writer"
       },
       {
-        "text": "Critic Loop",
+        "text": "评审循环",
         "link": "/phases/19-capstone-projects/55-critic-loop"
       },
       {
-        "text": "Iteration Scheduler",
+        "text": "迭代调度器",
         "link": "/phases/19-capstone-projects/56-iteration-scheduler"
       },
       {
-        "text": "End-to-End Research Demo",
+        "text": "端到端研究演示",
         "link": "/phases/19-capstone-projects/57-end-to-end-research-demo"
       }
     ]

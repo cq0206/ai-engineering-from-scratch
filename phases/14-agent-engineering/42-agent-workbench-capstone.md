@@ -1,22 +1,22 @@
 # 毕业项目：交付一个可复用的智能体工作台包
 
-> 这条迷你主线最终会产出一个可以直接丢进任意仓库的工作台包。关于表面的十一节课，被压缩进一个你可以 `cp -r` 到任何仓库里的目录，让智能体第二天早上就能可靠工作。这个毕业项目，就是整套课程真正拿来交换价值的工件。
+> 这条迷你主线最终会产出一个可以直接丢进任意仓库的工作台包。关于工作面的十一节课，被压缩进一个你可以 `cp -r` 到任何仓库里的目录，让智能体第二天早上就能可靠工作。这个毕业项目，就是整套课程真正拿来交换价值的工件。
 
 **类型：** 构建
-**语言：** Python（stdlib）
-**前置条件：** Phase 14 · 31 到 14 · 41
+**语言：** Python（标准库，stdlib）
+**前置条件：** 第 14 阶段 · 31 到 41
 **时间：** ~75 分钟
 
 ## 学习目标
 
-- 把七个工作台表面打包成一个可直接落地的目录。
+- 把七个工作台工作面打包成一个可直接落地的目录。
 - 固定模式、脚本和模板，让新仓库获得一个已知可靠的基线。
 - 添加一个单一安装脚本，以幂等方式铺设整个工作台包。
 - 决定哪些内容应该留在包里，哪些应该留在外面，并为每一刀裁剪进行辩护。
 
 ## 问题
 
-如果一个工作台散落在 Google Doc、聊天历史和三个只记得一半的脚本里，那它就会每个季度被重建一次。解药是一个带版本的工作台包：一个仓库或目录，里面装着表面、模式、脚本，以及一个单命令安装器。
+如果一个工作台散落在 Google 文档、聊天历史和三个只记得一半的脚本里，那它就会每个季度被重建一次。解药是一个带版本的工作台包：一个仓库或目录，里面装着工作面模式、脚本，以及一个单命令安装器。
 
 完成本课后，你会把 `outputs/agent-workbench-pack/` 真正交付到磁盘上，并拥有一个 `bin/install.sh`，可以把它安装到任何目标仓库中。
 
@@ -60,7 +60,7 @@ outputs/agent-workbench-pack/
 
 保留：
 
-- 表面模式。它们就是契约。
+- 工作面模式。它们就是契约。
 - 上面那四个脚本。它们就是运行时。
 - 那四份文档。它们就是规则与量表。
 
@@ -93,7 +93,7 @@ outputs/agent-workbench-pack/
 python3 code/main.py
 ```
 
-脚本会复制并固定这些表面、写出 README、打印工作台包树，并以零退出结束。重复运行是幂等的。
+脚本会复制并固定这些工作面、写出 README、打印工作台包树，并以零退出结束。重复运行是幂等的。
 
 ## 真实生产中的模式
 
@@ -105,7 +105,7 @@ python3 code/main.py
 
 **`uninstall.sh` 在遇到非平凡状态时必须拒绝执行。** 卸载工作台包时，绝不能删除用户的 `agent_state.json`、`task_board.json` 或 `outputs/`。卸载器应移除模式、脚本、文档和 `AGENTS.md`（可通过 `--keep-agents-md` 选择保留），并在状态文件存在任何未提交变更时拒绝继续。状态属于用户；工作台包并不拥有它。
 
-**把技能当作可发布物：类似 SkillKit 的分发方式。** 工作台包可以作为一个 SkillKit 技能发布：`skillkit install agent-workbench-pack` 会从单一来源把它铺到 32 种 AI 智能体上。工作台包仓库是事实来源；SkillKit 是分发通道。厂商锁定会坍塌，而七个表面保持不变。
+**把技能当作可发布物：类似 SkillKit 的分发方式。** 工作台包可以作为一个 SkillKit 技能发布：`skillkit install agent-workbench-pack` 会从单一来源把它铺到 32 种 AI 智能体上。工作台包仓库是事实来源；SkillKit 是分发通道。厂商锁定会坍塌，而七个工作面保持不变。
 
 ## 使用方式
 
@@ -133,7 +133,7 @@ python3 code/main.py
 
 | 术语 | 人们常说的话 | 它真正的含义 |
 |------|----------------|------------------------|
-| 工作台包 | “启动套件” | 一个带版本的目录，携带全部七个表面 |
+| 工作台包 | “启动套件” | 一个带版本的目录，携带全部七个工作面 |
 | 安装器 | “安装脚本” | 以幂等方式铺设工作台包的 `bin/install.sh` |
 | 工作台包版本 | “VERSION” | 模式/脚本变更升主版本号，仅文档变更升补丁版本号 |
 | 即插即用工作台包 | “cp -r 然后开跑” | 第一天无需逐仓库定制也能工作 |
@@ -141,7 +141,7 @@ python3 code/main.py
 
 ## 延伸阅读
 
-- Phase 14 · 31 到 14 · 41 —— 这个工作台包打包进去的全部表面
+- 第 14 阶段 · 31 到 41 —— 这个工作台包打包进去的全部工作面
 - [SkillKit](https://github.com/rohitg00/skillkit) — 在 32 种 AI 智能体之间安装这个技能
 - [Nx Blog, Teach Your AI Agent How to Work in a Monorepo](https://nx.dev/blog/nx-ai-agent-skills) — 跨六种工具的单一来源生成器
 - [agents.md — the open spec](https://agents.md/) — 你的工作台包路由器必须实现的内容
@@ -150,5 +150,5 @@ python3 code/main.py
 - [Augment Code, A good AGENTS.md is a model upgrade](https://www.augmentcode.com/blog/how-to-write-good-agents-dot-md-files) — 工作台包文档的质量门槛
 - [Anthropic, Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)
 - [Anthropic, Harness design for long-running application development](https://www.anthropic.com/engineering/harness-design-long-running-apps)
-- Phase 14 · 30 —— 会消费这个工作台包验证闸门的评估驱动智能体开发
-- Phase 14 · 41 —— 这个工作台包要进一步改善的前后对比基准
+- 第 14 阶段 · 30 —— 会消费这个工作台包验证闸门的评估驱动智能体开发
+- 第 14 阶段 · 41 —— 这个工作台包后续要继续改进的前后对比基准

@@ -1,6 +1,6 @@
 # Reflexion：语言式强化学习
 
-> 基于梯度的强化学习（gradient-based RL）需要成千上万次试验和一整个 GPU 集群，才能修复一种失败模式。Reflexion（Shinn 等，NeurIPS 2023）则用自然语言来做到这件事：每次试验失败后，智能体都会写下一段反思（reflection），把它存入情景记忆（episodic memory），并在下一次试验中以这段记忆为条件继续尝试。这正是 Letta 的 sleep-time compute、Claude Code 的 CLAUDE.md learnings，以及 pro-workflow 的 learn-rule 背后的模式。
+> 基于梯度的强化学习（gradient-based RL）需要成千上万次试验和一整个 GPU 集群，才能修复一种失败模式。Reflexion（Shinn 等，NeurIPS 2023）则用自然语言来做到这件事：每次试验失败后，智能体都会写下一段反思（reflection），把它存入情景记忆（episodic memory），并在下一次试验中以这段记忆为条件继续尝试。这正是 Letta 的睡眠期计算（sleep-time compute）、Claude Code 的 CLAUDE.md 经验条目（learnings），以及 pro-workflow 的 learn-rule 背后的模式。
 
 **类型：** 构建
 **语言：** Python（标准库）
@@ -52,7 +52,7 @@ Episodic memory: list of prior reflections, prepended to the next trial's prompt
 
 Reflexion 与其说是一种新算法，不如说是一种被命名的模式。几乎每个生产级“自愈”智能体都在运行某种变体：
 
-- Letta 的 sleep-time compute（第 08 课）：一个独立智能体反思过去的对话，并写入记忆块（memory blocks）。
+- Letta 的睡眠期计算（sleep-time compute，第 08 课）：一个独立智能体反思过去的对话，并写入记忆块（memory blocks）。
 - Claude Code 的 `CLAUDE.md` / “save memory” 模式：将反思记录为经验总结（learnings），并预置到未来会话中。
 - pro-workflow 的 `/learn-rule` 命令：把修正显式记录为规则。
 - LangGraph 的反思节点（reflection nodes）：一个节点先给输出打分，如果需要就路由到改进（refine）步骤。
@@ -73,7 +73,7 @@ Reflexion 在以下情况下帮助不大：
 - 失败来自外部（网络中断、工具损坏）——对“网络断了”的反思并不能帮助未来运行。
 - 反思演变成迷信——把一次偶发性不稳定运行（flaky run）编造成叙事并保存下来。
 
-2026 年的一个陷阱是：记忆腐化（memory rot）。反思不断累积；有些已经过时或本身就是错的；随着情景缓冲区增长，重新运行会越来越慢。缓解方法：定期压缩（第 06 课）、给反思加 TTL，或使用独立的 sleep-time 清理智能体（Letta）。
+2026 年的一个陷阱是：记忆腐化（memory rot）。反思不断累积；有些已经过时或本身就是错的；随着情景缓冲区增长，重新运行会越来越慢。缓解方法：定期压缩（第 06 课）、给反思加 TTL，或使用独立的睡眠期清理智能体（Letta）。
 
 ## 动手构建
 

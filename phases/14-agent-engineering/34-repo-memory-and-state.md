@@ -58,7 +58,7 @@ Schema 包括：
 
 ### 原子写入
 
-状态写入必须能承受部分失败：先写到临时文件，`fsync`，再用 rename 覆盖目标文件。状态文件是事实来源；半写好的状态文件比没有文件更糟。
+状态写入必须能承受部分失败：先写到临时文件，`fsync`，再用重命名覆盖目标文件。状态文件是事实来源；半写好的状态文件比没有文件更糟。
 
 ### 迁移
 
@@ -70,7 +70,7 @@ Schema 包括：
 
 - `agent_state.schema.json` 和 `task_board.schema.json`。
 - 一个只用标准库实现的验证器（JSON Schema 的子集：required、type、enum、pattern、items）。
-- `StateManager.load`、`StateManager.update`、`StateManager.commit`，使用临时文件加 rename 的原子写入。
+- `StateManager.load`、`StateManager.update`、`StateManager.commit`，使用临时文件加重命名的原子写入。
 - 一个演示：修改状态、持久化、重新加载，并证明往返一致。
 
 运行它：
@@ -111,7 +111,7 @@ python3 code/main.py
 
 1. 增加一个 `last_human_touch` 时间戳。若人类编辑发生后五秒内有智能体写入，则拒绝。
 2. 扩展验证器以支持 `oneOf`，让一个任务可以是构建任务或评审任务，并拥有不同的必填字段。
-3. 加入 `schema_version` 字段，并编写从 v1 到 v2 的 migration（把 `blockers` 重命名为 `risks`）。
+3. 加入 `schema_version` 字段，并编写从 v1 到 v2 的迁移（把 `blockers` 重命名为 `risks`）。
 4. 把存储后端从本地文件迁移到 SQLite。保持 `StateManager` API 完全不变。
 5. 让两个智能体同时写同一个状态文件，并制造 50 ms 的写入竞争。会出什么问题，原子重命名又是怎么救场的？
 
@@ -121,7 +121,7 @@ python3 code/main.py
 |------|--------------|------------------|
 | 仓库记忆 | “笔记文件” | 存在仓库、受 Schema 约束的追踪状态文件 |
 | 以 Schema 为先 | “先校验输入” | 在编写器之前先定义契约，并拒绝漂移 |
-| 原子写入 | “直接 rename 就行” | 先写临时文件、`fsync`、再用 rename，使部分失败不会损坏文件 |
+| 原子写入 | “直接重命名就行” | 先写临时文件、`fsync`、再用重命名，使部分失败不会损坏文件 |
 | 迁移 | “Schema 升级” | 把 vN 状态转换成 v(N+1) 的脚本 |
 | 记录系统 | “事实来源” | 工作台视为权威的工件 |
 

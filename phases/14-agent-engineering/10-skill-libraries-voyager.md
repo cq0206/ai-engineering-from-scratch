@@ -62,7 +62,7 @@ async function craftIronPickaxe(bot) {
 3. 取回 `craftIronPickaxe`、`mineDiamond`、`placeCraftingTable` 等技能。
 4. 用这些取回的原语技能加上一些新逻辑，组合出新的技能。
 
-这正是 MCP 资源（resources，第 13 阶段）和 Agent SDK skills 所实现的模式：在知识/代码表面上做检索，并将范围限制在当前任务内。
+这正是 MCP 资源（resources，第 13 阶段）和 Agent SDK skills 所实现的模式：在知识/代码层面做检索，并将范围限制在当前任务内。
 
 ### 迭代式改进
 

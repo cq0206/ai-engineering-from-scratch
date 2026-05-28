@@ -1,16 +1,16 @@
 # 运行时反馈循环
 
-> 看不到真实命令输出的智能体只能靠猜。反馈运行器（feedback runner）会把 stdout、stderr、退出码和耗时捕获到结构化记录里，供下一轮读取。这样，智能体就是在对事实作出反应，而不是对自己预测出的“事实”作出反应。
+> 看不到真实命令输出的智能体只能靠猜。反馈运行器（feedback runner）会把标准输出（stdout）、标准错误（stderr）、退出码和耗时捕获到结构化记录里，供下一轮读取。这样，智能体就是在对事实作出反应，而不是对自己预测出的“事实”作出反应。
 
 **类型：** 构建
-**语言：** Python（stdlib）
-**前置条件：** Phase 14 · 32（最小工作台）, Phase 14 · 35（初始化脚本）
+**语言：** Python（标准库，stdlib）
+**前置条件：** 第 14 阶段 · 32（最小工作台）, 第 14 阶段 · 35（初始化脚本）
 **时间：** ~50 分钟
 
 ## 学习目标
 
 - 区分运行时反馈与可观测性遥测。
-- 构建一个反馈运行器，包装 Shell 命令并持久化结构化记录。
+- 构建一个反馈运行器，包装 Shell（shell）命令并持久化结构化记录。
 - 以确定性的方式截断大输出，让循环保持在令牌预算内。
 - 在缺少反馈时拒绝推进循环。
 
@@ -18,7 +18,7 @@
 
 智能体说“现在开始跑测试”。下一条消息又说“所有测试都通过了”。而现实是，根本没有测试运行。它可能是凭空想象了输出，或者运行了命令却从未读取结果，又或者读取了结果，却悄悄把失败那一行截掉了。
 
-反馈运行器可以消除这道裂缝。每条命令都必须经过运行器。每条记录都携带命令、捕获到的 stdout 与 stderr、退出码、墙钟耗时，以及智能体写下的一行备注。智能体在下一轮读取这条记录。验证闸门会在任务结束时读取这些记录。
+反馈运行器可以消除这道裂缝。每条命令都必须经过运行器。每条记录都携带命令、捕获到的标准输出（stdout）与标准错误（stderr）、退出码、墙钟耗时，以及智能体写下的一行备注。智能体在下一轮读取这条记录。验证闸门会在任务结束时读取这些记录。
 
 ## 概念
 
@@ -50,7 +50,7 @@ flowchart LR
 
 ### 反馈与遥测
 
-遥测（Phase 14 · 23，OTel GenAI 语义约定）服务于跨时间审查运行情况的人类操作员。反馈服务于这次运行的下一轮。二者共享一些字段，但它们位于不同文件里，保留策略也不同。
+遥测（第 14 阶段 · 23，OTel GenAI 语义约定）服务于跨时间审查运行情况的人类操作员。反馈服务于这次运行的下一轮。二者共享一些字段，但它们位于不同文件里，保留策略也不同。
 
 ### 没有反馈就拒绝推进
 
@@ -76,11 +76,11 @@ python3 code/main.py
 
 有三种模式能把这个运行器加固到足以上线。
 
-**在写入时脱敏，不要在读取时脱敏。** 任何接触 stdout 或 stderr 的记录都有可能泄露密钥。运行器会在追加 JSONL 之前先做一次脱敏：删除匹配 `^Bearer `、`password=`、`api[_-]?key=`、`AKIA[0-9A-Z]{16}`（AWS）、`xox[baprs]-`（Slack）的行。读取时再脱敏是个危险误区；攻击者真正能拿到的是磁盘上的文件。应按季度根据生产运行时中观察到的真实密钥格式审计脱敏模式。
+**在写入时脱敏，不要在读取时脱敏。** 任何接触标准输出（stdout）或标准错误（stderr）的记录都有可能泄露密钥。运行器会在追加 JSONL 之前先做一次脱敏：删除匹配 `^Bearer `、`password=`、`api[_-]?key=`、`AKIA[0-9A-Z]{16}`（AWS）、`xox[baprs]-`（Slack）的行。读取时再脱敏是个危险误区；攻击者真正能拿到的是磁盘上的文件。应按季度根据生产运行时中观察到的真实密钥格式审计脱敏模式。
 
 **要有轮转策略，而不是只写一个文件。** 将 `feedback_record.jsonl` 限制为每个文件 1 MB；溢出后轮转到 `.1`、`.2`，并丢弃 `.5`。智能体循环只读取当前文件，因此运行时成本是有上界的。CI 工件存储则保留完整的轮转集合。没有轮转时，这个文件会在每次加载器调用时变成瓶颈。
 
-**为重试链引入父命令 ID。** 每条记录都带 `command_id`；重试记录则带上 `parent_command_id` 指向上一次尝试。评审者的“失败尝试”列表（Phase 14 · 40）和验证闸门的审计都会沿着这条链追踪。没有这个链接，重试看起来就像彼此独立的成功，审计也会掩盖失败历史。
+**为重试链引入父命令 ID。** 每条记录都带 `command_id`；重试记录则带上 `parent_command_id` 指向上一次尝试。评审者的“失败尝试”列表（第 14 阶段 · 40）和验证闸门的审计都会沿着这条链追踪。没有这个链接，重试看起来就像彼此独立的成功，审计也会掩盖失败历史。
 
 ## 使用方式
 
@@ -120,8 +120,8 @@ python3 code/main.py
 - [Anthropic, Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)
 - [Guardrails AI x MLflow — deterministic safety, PII, quality validators](https://guardrailsai.com/blog/guardrails-mlflow) — 将脱敏模式当作回归测试
 - [Aport.io, Best AI Agent Guardrails 2026: Pre-Action Authorization Compared](https://aport.io/blog/best-ai-agent-guardrails-2026-pre-action-authorization-compared/) — 工具调用前/后的捕获
-- [Andrii Furmanets, AI Agents in 2026: Practical Architecture for Tools, Memory, Evals, Guardrails](https://andriifurmanets.com/blogs/ai-agents-2026-practical-architecture-tools-memory-evals-guardrails) — 可观测性表面
-- Phase 14 · 23 —— 遥测侧使用的 OTel GenAI 约定
-- Phase 14 · 24 —— 智能体可观测性平台（Langfuse、Phoenix、Opik）
-- Phase 14 · 33 —— 要求先有反馈才能宣告完成的规则
-- Phase 14 · 38 —— 读取 JSONL 的验证闸门
+- [Andrii Furmanets, AI Agents in 2026: Practical Architecture for Tools, Memory, Evals, Guardrails](https://andriifurmanets.com/blogs/ai-agents-2026-practical-architecture-tools-memory-evals-guardrails) — 可观测性工作面
+- 第 14 阶段 · 23 —— 遥测侧使用的 OTel GenAI 约定
+- 第 14 阶段 · 24 —— 智能体可观测性平台（Langfuse、Phoenix、Opik）
+- 第 14 阶段 · 33 —— 要求先有反馈才能宣告完成的规则
+- 第 14 阶段 · 38 —— 读取 JSONL 的验证闸门

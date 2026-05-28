@@ -4,7 +4,7 @@
 
 **Type:** Build
 **Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 01 (Agent Loop), Phase 14 · 03 (Reflexion)
+**Prerequisites:** 第 14 阶段 · 01 (Agent Loop), 第 14 阶段 · 03 (Reflexion)
 **Time:** ~60 minutes
 
 ## Learning Objectives

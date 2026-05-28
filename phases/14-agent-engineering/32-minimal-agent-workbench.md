@@ -105,7 +105,7 @@ python3 code/main.py
 
 1. 给 `agent_state.json` 增加一个 `last_run` 时间戳。如果文件超过 24 小时未更新，除非操作员确认，否则拒绝运行。
 2. 给任务看板增加一个 `priority` 字段，并修改拉取器，使其总是选择优先级最高的 `todo`。
-3. 把 `task_board.json` 迁移到 JSON Lines，这样每个任务占一行，版本控制中的 diff 更干净。
+3. 把 `task_board.json` 迁移到 JSON Lines，这样每个任务占一行，版本控制中的差异更干净。
 4. 写一个 `lint_workbench.py`：如果 `AGENTS.md` 超过 80 行，或引用了不存在的文件，就让它失败。
 5. 决定这三个文件里哪一个丢失后伤害最大。为你的选择辩护。
 
