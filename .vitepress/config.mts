@@ -4,11 +4,11 @@ import sidebar from "./sidebar.json";
 export default defineConfig({
   title: "AI 工程从零开始",
   description: "473 课时系统化 AI 工程课程 — 从数学基础到 Agent 生产部署",
-  base: "/t/ai-engineering/",
+  base: "/ai-engineering-from-scratch/",
   lang: "zh-CN",
 
   head: [
-    ["link", { rel: "icon", type: "image/svg+xml", href: "/t/ai-engineering/logo.svg" }],
+    ["link", { rel: "icon", type: "image/svg+xml", href: "/ai-engineering-from-scratch/logo.svg" }],
   ],
 
   themeConfig: {
