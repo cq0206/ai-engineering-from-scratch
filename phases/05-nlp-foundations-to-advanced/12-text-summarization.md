@@ -1,35 +1,35 @@
-# Text Summarization
+# 文本摘要（Text Summarization）
 
-> Extractive systems tell you what the document said. Abstractive systems tell you what the author meant. Different tasks, different pitfalls.
+> 抽取式系统（extractive systems）告诉你文档说了什么。生成式系统（abstractive systems）告诉你作者想表达什么。任务不同，坑也不同。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 5 · 02 (BoW + TF-IDF), Phase 5 · 11 (Machine Translation)
-**Time:** ~75 minutes
+**类型：** 构建
+**语言：** Python
+**前置条件：** 第 5 阶段 · 02（BoW + TF-IDF），第 5 阶段 · 11（机器翻译）
+**时间：** ~75 分钟
 
-## The Problem
+## 问题
 
-A 2,000-word news article lands in your feed. You need 120 words that capture it. You can either pick the three most important sentences from the article (extractive) or rewrite the content in your own words (abstractive). Both are called summarization. They are completely different problems.
+一篇 2,000 词的新闻文章出现在你的信息流里。你需要 120 个词来概括它。你可以从文章中挑出最重要的三句话（抽取式摘要，extractive summarization），也可以用自己的话重写内容（生成式摘要，abstractive summarization）。这两者都叫摘要，但其实是完全不同的问题。
 
-Extractive summarization is a ranking problem. Score every sentence, return the top-`k`. The output is always grammatical because it is lifted verbatim. The risk is missing content that is distributed across the article.
+抽取式摘要是一个排序问题。给每个句子打分，返回 top-`k`。因为输出是原文逐字摘取的，所以语法一定没问题。风险在于，文章里分散分布的信息可能被漏掉。
 
-Abstractive summarization is a generation problem. A transformer produces new text conditioned on the input. The output is fluent and compressive but may hallucinate facts that were not in the source. The risk is confident fabrication.
+生成式摘要是一个生成问题。Transformer 根据输入生成新的文本。输出流畅、压缩率高，但也可能幻觉出源文中根本没有的事实。它的风险，是自信地胡编。
 
-This lesson builds both, with the failure mode each one owns.
+本课把这两种都搭起来，同时点出它们各自最典型的失败模式。
 
-## The Concept
+## 概念
 
-*Extractive TextRank vs abstractive transformer*
+*抽取式 TextRank vs 生成式 Transformer*
 
-**Extractive.** Treat the article as a graph where nodes are sentences and edges are similarities. Run PageRank (or something like it) over the graph to score sentences by how connected they are to everything else. Highest-scoring sentences are the summary. The canonical implementation is **TextRank** (Mihalcea and Tarau, 2004).
+**抽取式（Extractive）。** 把文章看作一张图：节点是句子，边是句子之间的相似度。在这张图上运行 PageRank（或类似算法），按句子与其他句子的连接程度来打分。分数最高的句子组成摘要。经典实现是 **TextRank**（Mihalcea 和 Tarau，2004）。
 
-**Abstractive.** Fine-tune a transformer encoder-decoder (BART, T5, Pegasus) on document-summary pairs. At inference, the model reads the document and generates the summary token-by-token via cross-attention. Pegasus in particular uses a gap-sentence pretraining objective that makes it excellent at summarization without much fine-tuning.
+**生成式（Abstractive）。** 在文档-摘要对上微调一个 Transformer 编码器-解码器（BART、T5、Pegasus）。推理时，模型读取文档，并通过交叉注意力（cross-attention）逐 token 生成摘要。尤其是 Pegasus，它使用缺失句预训练目标（gap-sentence pretraining objective），因此即使不做太多微调也非常擅长摘要。
 
-Evaluation with **ROUGE** (Recall-Oriented Understudy for Gisting Evaluation). ROUGE-1 and ROUGE-2 score unigram and bigram overlap. ROUGE-L scores longest common subsequence. Higher is better but 40 ROUGE-L is "good" and 50 is "exceptional." Every paper reports all three. Use the `rouge-score` package.
+用 **ROUGE**（Recall-Oriented Understudy for Gisting Evaluation）做评估。ROUGE-1 和 ROUGE-2 分别衡量 unigram 与 bigram 重叠。ROUGE-L 衡量最长公共子序列。分数越高越好，但 40 的 ROUGE-L 已经算“不错”，50 算“非常出色”。论文通常三个都会报。使用 `rouge-score` 包。
 
-## Build It
+## 动手构建
 
-### Step 1: TextRank (extractive)
+### 第 1 步：TextRank（抽取式）
 
 ```python
 import math
@@ -81,9 +81,9 @@ def textrank(text, top_k=3, damping=0.85, iterations=50, epsilon=1e-4):
     return [sentences[i] for i in ranked]
 ```
 
-Two things worth naming. The similarity function uses log-normalized word overlap, which is the original TextRank variant. Cosine of TF-IDF vectors works too. The damping factor 0.85 and iteration count are the PageRank defaults.
+这里有两点值得点名。相似度函数使用的是经过对数归一化的词重叠，这就是最初的 TextRank 变体。改用 TF-IDF 向量的余弦相似度也可以。阻尼系数 0.85 和迭代次数则沿用了 PageRank 的默认设置。
 
-### Step 2: abstractive with BART
+### 第 2 步：用 BART 做生成式摘要
 
 ```python
 from transformers import pipeline
@@ -96,9 +96,9 @@ summary = summarizer(article, max_length=120, min_length=60, do_sample=False)
 print(summary[0]["summary_text"])
 ```
 
-BART-large-CNN is fine-tuned on the CNN/DailyMail corpus. It produces news-style summaries out of the box. For other domains (scientific papers, dialog, legal), use the corresponding Pegasus checkpoint or fine-tune on your target data.
+BART-large-CNN 在 CNN/DailyMail 语料上做过微调。它开箱即用就能生成新闻风格摘要。对于其他领域（科学论文、对话、法律），使用对应的 Pegasus checkpoint，或在目标数据上微调。
 
-### Step 3: ROUGE evaluation
+### 第 3 步：ROUGE 评估
 
 ```python
 from rouge_score import rouge_scorer
@@ -108,56 +108,56 @@ scores = scorer.score(reference_summary, generated_summary)
 print({k: round(v.fmeasure, 3) for k, v in scores.items()})
 ```
 
-Always use stemming. Without it, "running" and "run" count as different words and ROUGE undercounts.
+一定要启用 stemming。不然 “running” 和 “run” 会被当成不同词，ROUGE 就会少算匹配。
 
-### Beyond ROUGE (2026 summarization eval)
+### 超越 ROUGE（2026 年摘要评估）
 
-ROUGE has been the dominant summarization metric for twenty years and it is insufficient on its own in 2026. A large-scale meta-analysis of NLG papers showed:
+ROUGE 已经主导摘要评估二十年了，但到 2026 年，单靠它远远不够。一项针对 NLG 论文的大规模元分析显示：
 
-- **BERTScore** (contextual embedding similarity) gained ground through 2023 and is now reported alongside ROUGE in most summarization papers.
-- **BARTScore** treats evaluation as generation: score the summary by how likely a pretrained BART assigns it given the source.
-- **MoverScore** (Earth Mover's Distance over contextual embeddings) reached the top spot in 2025 summarization benchmarks because it captures semantic overlap better than ROUGE.
-- **FactCC** and **QA-based faithfulness** were common 2021-2023, now often replaced by **G-Eval** (a GPT-4 prompt chain that scores coherence, consistency, fluency, relevance with chain-of-thought reasoning).
-- **G-Eval** and similar LLM-judge approaches match human judgment ~80% of the time when rubrics are well-designed.
+- **BERTScore**（上下文化嵌入相似度）在 2023 年前后快速普及，现在大多数摘要论文都会和 ROUGE 一起报告。
+- **BARTScore** 把评估视为生成任务：看一个预训练 BART 在给定源文时，认为摘要有多大概率出现。
+- **MoverScore**（基于上下文化嵌入上的 Earth Mover's Distance）在 2025 年摘要基准中登顶，因为它比 ROUGE 更能捕捉语义重叠。
+- **FactCC** 和 **基于 QA 的忠实度（QA-based faithfulness）** 在 2021-2023 年很常见，如今常被 **G-Eval** 取代：它通过一条 GPT-4 提示链，用链式思维推理给连贯性、一致性、流畅度和相关性打分。
+- **G-Eval** 以及类似的 LLM 评委方法，在 rubric 设计合理时，与人工判断的一致率约为 80%。
 
-Production recommendation: report ROUGE-L for legacy comparison, BERTScore for semantic overlap, G-Eval for coherence and factuality. Calibrate against 50-100 human-labeled summaries.
+生产建议：用 ROUGE-L 做历史对比，用 BERTScore 看语义重叠，用 G-Eval 看连贯性和事实性。先拿 50-100 个人工标注摘要做校准。
 
-### Step 4: the factuality problem
+### 第 4 步：事实性问题
 
-Abstractive summaries are prone to hallucination. Extractive summaries carry a much lower hallucination risk because the output is lifted verbatim from the source, though they can still mislead if source sentences are decontextualized, outdated, or quoted out of order. This is the single biggest reason production systems still prefer extractive methods for compliance-adjacent content.
+生成式摘要很容易出现幻觉。抽取式摘要的幻觉风险低得多，因为输出是从源文逐字摘取的；当然，如果原句脱离上下文、已经过时，或被打乱引用顺序，它仍可能误导。这也是为什么在接近合规场景的生产系统里，人们仍偏爱抽取式方法。
 
-Hallucination types to name:
+需要点名的幻觉类型：
 
-- **Entity swap.** Source says "John Smith." Summary says "John Brown."
-- **Number drift.** Source says "25,000." Summary says "25 million."
-- **Polarity flip.** Source says "rejected the offer." Summary says "accepted the offer."
-- **Fact invention.** Source does not mention the CEO. Summary says the CEO approved.
+- **实体替换（Entity swap）。** 源文写的是 “John Smith.”，摘要写成 “John Brown.”
+- **数字漂移（Number drift）。** 源文写的是 “25,000.”，摘要写成 “25 million.”
+- **极性翻转（Polarity flip）。** 源文写的是 “rejected the offer.”，摘要却写成 “accepted the offer.”
+- **事实捏造（Fact invention）。** 源文没有提到 CEO，摘要却说 CEO 批准了。
 
-Evaluation approaches that work:
+有效的评估方法：
 
-- **FactCC.** A binary classifier trained on entailment between source sentence and summary sentence. Predicts factual/not-factual.
-- **QA-based factuality.** Ask a QA model questions whose answers are in the source. If the summary supports different answers, flag.
-- **Entity-level F1.** Compare named entities in source vs summary. Entities present only in the summary are suspect.
+- **FactCC。** 一个在源句与摘要句之间做蕴含判断的二分类器。预测是否符合事实。
+- **基于 QA 的事实性检查（QA-based factuality）。** 让 QA 模型回答那些答案明确存在于源文中的问题。如果摘要支持的是不同答案，就标红。
+- **实体级 F1（Entity-level F1）。** 比较源文和摘要中的命名实体。只出现在摘要中的实体都值得怀疑。
 
-For anything user-facing where factuality matters (news, medical, legal, financial), extractive is the safer default. Abstractive needs a factuality check in the loop.
+对于任何面向用户、且事实性重要的场景（新闻、医疗、法律、金融），抽取式都是更安全的默认选项。生成式摘要必须加事实性检查。
 
-## Use It
+## 使用它
 
-The 2026 stack:
+2026 年的组合：
 
-| Use case | Recommended |
+| 用例 | 推荐 |
 |---------|-------------|
-| News, 3-5 sentence summary, English | `facebook/bart-large-cnn` |
-| Scientific papers | `google/pegasus-pubmed` or a tuned T5 |
-| Multi-document, long-form | Any LLM with 32k+ context, prompted |
-| Dialog summarization | `philschmid/bart-large-cnn-samsum` |
-| Extractive, low hallucination risk by construction | TextRank or `sumy`'s LSA / LexRank |
+| 新闻，3-5 句摘要，英文 | `facebook/bart-large-cnn` |
+| 科学论文 | `google/pegasus-pubmed` 或调优后的 T5 |
+| 多文档、长篇摘要 | 任意支持 32k+ 上下文并经提示设计的 LLM |
+| 对话摘要 | `philschmid/bart-large-cnn-samsum` |
+| 低幻觉风险、结构上更安全的抽取式 | TextRank 或 `sumy` 的 LSA / LexRank |
 
-LLMs with long context often beat specialized models in 2026 when compute is not a constraint. The tradeoff is cost and reproducibility; specialized models give more consistent outputs.
+在计算不是约束时，长上下文 LLM 到 2026 年往往会超过专用摘要模型。代价是成本与可复现性；专用模型的输出通常更稳定。
 
-## Ship It
+## 交付它
 
-Save as `outputs/skill-summary-picker.md`:
+保存为 `outputs/skill-summary-picker.md`：
 
 ```markdown
 ---
@@ -179,27 +179,27 @@ Given a task (document type, compliance requirement, length, compute budget), ou
 Refuse abstractive summarization for medical, legal, financial, or regulated content without a factuality gate. Flag input over the model's context window as needing chunked map-reduce summarization (not just truncation).
 ```
 
-## Exercises
+## 练习
 
-1. **Easy.** Run TextRank on 5 news articles. Compare the top-3 sentences to a reference summary. Measure ROUGE-L. You should see 30-45 ROUGE-L on CNN/DailyMail-style articles.
-2. **Medium.** Implement entity-level factuality: extract named entities from source and summary (spaCy), compute recall of source entities in summary and precision of summary entities against source. High precision and low recall mean safe but terse; low precision means hallucinated entities.
-3. **Hard.** Compare BART-large-CNN against an LLM (Claude or GPT-4) on 50 CNN/DailyMail articles. Report ROUGE-L, factuality (by entity F1), and cost per summary. Document where each wins.
+1. **简单。** 在 5 篇新闻文章上运行 TextRank。把 top-3 句和参考摘要比较，测量 ROUGE-L。对于 CNN/DailyMail 风格文章，你应该会看到 30-45 的 ROUGE-L。
+2. **中等。** 实现实体级事实性检查：从源文和摘要中提取命名实体（spaCy），计算摘要中覆盖源文实体的召回率，以及摘要实体相对于源文的精确率。高精确率、低召回率意味着安全但简略；低精确率则意味着有幻觉实体。
+3. **困难。** 在 50 篇 CNN/DailyMail 文章上比较 BART-large-CNN 和一个 LLM（Claude 或 GPT-4）。报告 ROUGE-L、事实性（用实体 F1 评估），以及每条摘要的成本。记录各自胜出的场景。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|-----------------|-----------------------|
-| Extractive | Pick sentences | Return sentences verbatim from the source. Never hallucinates. |
-| Abstractive | Rewrite | Generate new text conditioned on source. Can hallucinate. |
-| ROUGE | Summary metric | N-gram / LCS overlap between system output and reference. |
-| TextRank | Graph-based extractive | PageRank over sentence similarity graph. |
-| Factuality | Is it right | Whether summary claims are supported by the source. |
-| Hallucination | Made-up content | Content in the summary that the source does not support. |
+| 术语 | 大家常说 | 实际含义 |
+|------|----------|----------|
+| 抽取式（Extractive） | 挑句子 | 直接返回源文中的句子。永远不会幻觉。 |
+| 生成式（Abstractive） | 改写 | 基于源文生成新文本。可能会幻觉。 |
+| ROUGE | 摘要指标 | 系统输出与参考摘要之间的 n-gram / LCS 重叠。 |
+| TextRank | 基于图的抽取式 | 在句子相似度图上跑 PageRank。 |
+| 事实性（Factuality） | 对不对 | 摘要中的陈述是否得到源文支持。 |
+| 幻觉（Hallucination） | 编出来的内容 | 摘要里出现了源文不支持的内容。 |
 
-## Further Reading
+## 延伸阅读
 
-- [Mihalcea and Tarau (2004). TextRank: Bringing Order into Texts](https://aclanthology.org/W04-3252/) — the extractive canonical paper.
-- [Lewis et al. (2019). BART: Denoising Sequence-to-Sequence Pre-training](https://arxiv.org/abs/1910.13461) — the BART paper.
-- [Zhang et al. (2019). PEGASUS: Pre-training with Extracted Gap-sentences](https://arxiv.org/abs/1912.08777) — Pegasus and the gap-sentence objective.
-- [Lin (2004). ROUGE: A Package for Automatic Evaluation of Summaries](https://aclanthology.org/W04-1013/) — ROUGE paper.
-- [Maynez et al. (2020). On Faithfulness and Factuality in Abstractive Summarization](https://arxiv.org/abs/2005.00661) — the factuality landscape paper.
+- [Mihalcea and Tarau (2004). TextRank: Bringing Order into Texts](https://aclanthology.org/W04-3252/) —— 抽取式摘要的经典论文。
+- [Lewis et al. (2019). BART: Denoising Sequence-to-Sequence Pre-training](https://arxiv.org/abs/1910.13461) —— BART 论文。
+- [Zhang et al. (2019). PEGASUS: Pre-training with Extracted Gap-sentences](https://arxiv.org/abs/1912.08777) —— Pegasus 与 gap-sentence 目标。
+- [Lin (2004). ROUGE: A Package for Automatic Evaluation of Summaries](https://aclanthology.org/W04-1013/) —— ROUGE 论文。
+- [Maynez et al. (2020). On Faithfulness and Factuality in Abstractive Summarization](https://arxiv.org/abs/2005.00661) —— 关于忠实度与事实性的综述论文。

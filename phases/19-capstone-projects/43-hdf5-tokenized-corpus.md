@@ -1,128 +1,128 @@
-# HDF5 Tokenized Corpus
+# HDF5 词元化语料库
 
-> The downloaded corpus has to land in a layout the trainer can stream from at line speed. JSONL on disk does not survive 16 dataloader workers. HDF5 with a resizable, chunked integer dataset does. This lesson builds streaming tokenization into a resizable HDF5 dataset, sharded write across multiple files, memory-mapped read at training time, and a sliding-window dataloader that produces fixed-length sequences with the right packing.
+> 下载得到的语料库必须落在一种训练器能够以线速流式读取的布局中。磁盘上的 JSONL 扛不住 16 个数据加载器（dataloader）工作进程；带有可调整大小、分块整数数据集的 HDF5 可以。本课将把流式词元化（tokenization）构建到一个可调整大小的 HDF5 数据集中，把写入按多个文件进行分片（shard），在训练时进行内存映射读取（memory-mapped read），并实现一个滑动窗口数据加载器（sliding-window dataloader），产出遵循正确打包规则（packing rules）的固定长度序列。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 19 lessons 30-37
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python
+**先修要求：** 第 19 阶段第 30-37 课
+**耗时：** ~90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Stream documents into a resizable HDF5 integer dataset with deterministic chunking.
-- Shard the write across multiple HDF5 files so failure is bounded and parallelism is possible.
-- Read tokens back through HDF5's page-cache-backed chunked layout so the dataloader copies into batch buffers only at batch time.
-- Implement a sliding-window dataloader that emits fixed-length training sequences with explicit packing rules.
+- 以确定性的分块方式，将文档流式写入一个可调整大小的 HDF5 整数数据集。
+- 将写入分散到多个 HDF5 文件中，以便把故障影响限制住并支持并行。
+- 通过 HDF5 由页缓存支撑的分块布局把词元读回，使数据加载器只在批次时刻才拷贝到批缓冲区。
+- 实现一个滑动窗口数据加载器，按显式打包规则发出固定长度的训练序列。
 
-## The Problem
+## 问题
 
-A modern language-model training run reads tokens at hundreds of thousands of samples per second across dozens of workers. JSONL on disk dies at the first cold-cache page fault: the JSON parser is slow, the document boundaries are not addressable, and seeking to "sample 4,217,884" requires scanning the file. Even Parquet, which compresses well, is a poor fit because the trainer does not want columns; it wants a flat token stream with O(1) random access.
+一次现代语言模型训练会在数十个工作进程上，以每秒数十万样本的速度读取词元。磁盘上的 JSONL 在第一次冷缓存缺页时就不行了：JSON 解析器很慢，文档边界不可直接寻址，而想跳到“样本 4,217,884”必须扫描整个文件。即使是压缩效果很好的 Parquet 也不合适，因为训练器需要的不是列，而是一个支持 O(1) 随机访问的扁平词元流。
 
-HDF5 fits because it offers a chunked, resizable, integer-only dataset whose chunks are page-cache friendly at read time. The trainer asks for a slice of `tokens[3,200,000 : 3,200,8192]` and HDF5 copies the requested hyperslab from the page cache into a freshly allocated NumPy array. The cost is one open file handle and a chunk-sized page-cache footprint per worker, which is negligible compared to the cost of decoding JSONL.
+HDF5 合适，是因为它提供了分块、可调整大小、仅存整数的数据集，其分块在读取时对页缓存很友好。训练器请求 `tokens[3,200,000 : 3,200,8192]` 这样的切片时，HDF5 会把请求的超切片（hyperslab）从页缓存复制到一个新分配的 NumPy 数组中。每个工作进程的代价只是一个打开的文件句柄，以及一个按 chunk 大小计算的页缓存占用；与解码 JSONL 的成本相比，这几乎可以忽略不计。
 
-The build problem is making the write side honest. Resizable datasets are easy to misuse: write one document at a time and the HDF5 file is fragmented to the point of unusable. Write all documents in one resize and a process death loses the whole shard. The right discipline is buffer-then-extend, with a buffer size that matches the chunk size, and a sharded write that splits the workload across files so a crash loses at most one shard.
+真正的构建难点在于让写入端保持规范。可调整大小数据集很容易被误用：如果一次写一个文档，HDF5 文件会碎片化到不可用；如果一次 resize 写入全部文档，进程一旦死亡就会丢掉整个分片。正确的纪律是“先缓冲，再扩展”，并让缓冲区大小与 chunk 大小一致，同时采用跨文件的分片写入，使一次崩溃最多只丢失一个分片。
 
-## The Concept
+## 概念
 
 ```mermaid
 flowchart TD
-  JSONL[JSONL documents] --> Tokenize[Tokenize incrementally]
-  Tokenize --> Buffer[Append to in-memory buffer]
-  Buffer --> Flush{buffer >= chunk?}
+  JSONL[JSONL 文档] --> Tokenize[增量词元化]
+  Tokenize --> Buffer[追加到内存缓冲区]
+  Buffer --> Flush{缓冲区 >= chunk?}
   Flush -- no --> Tokenize
-  Flush -- yes --> Resize[Resize HDF5 dataset]
-  Resize --> Write[Write buffer to new range]
+  Flush -- yes --> Resize[调整 HDF5 数据集大小]
+  Resize --> Write[将缓冲区写入新区间]
   Write --> Buffer
-  Buffer --> Close[Final flush + close]
-  Close --> ShardDone[Shard file finalized]
-  ShardDone --> MMapRead[Memory-mapped read]
-  MMapRead --> Window[Sliding-window dataloader]
-  Window --> Train[Train batch]
+  Buffer --> Close[最终刷新并关闭]
+  Close --> ShardDone[分片文件定稿]
+  ShardDone --> MMapRead[内存映射读取]
+  MMapRead --> Window[滑动窗口数据加载器]
+  Window --> Train[训练批次]
 ```
 
-### Resizable HDF5 done right
+### 正确实现可调整大小的 HDF5
 
-The token dataset is created with `maxshape=(None,)` and a fixed `chunks=(chunk_size,)`. Writing proceeds by buffering tokens in a NumPy array of length `chunk_size`. When the buffer fills, the dataset is resized by exactly `chunk_size` and the buffer is written into the new range. At end-of-shard the residual buffer is written into a final partial range. Every write is contiguous and chunk-aligned except the last one, which the reader is told to truncate at the recorded `token_count` in the shard's HDF5 attributes.
+词元数据集以 `maxshape=(None,)` 和固定的 `chunks=(chunk_size,)` 创建。写入过程会把词元先缓冲到一个长度为 `chunk_size` 的 NumPy 数组中。当缓冲区写满时，数据集会按精确的 `chunk_size` 扩容，并把缓冲区写入新范围。分片结束时，残余缓冲区会写入最后一个部分填充的范围。除最后一次写入外，所有写入都是连续且按 chunk 对齐的；最后这段由读取端根据分片 HDF5 属性里记录的 `token_count` 截断。
 
-### Sharded write
+### 分片写入
 
-A single HDF5 file is a single point of failure. The pipeline writes shards in parallel: each input shard from Phase 19 lesson 42 produces one HDF5 output shard. A `shards.json` index records, per shard, the file path, the token count, the document count, and a sha256 over the tokens. The trainer reads `shards.json` to compute global offsets and to validate the corpus.
+单个 HDF5 文件就是单点故障。流水线并行写出多个分片：第 19 阶段第 42 课的每个输入分片，都会生成一个 HDF5 输出分片。一个 `shards.json` 索引会为每个分片记录文件路径、词元数量、文档数量，以及覆盖这些词元的 sha256。训练器读取 `shards.json` 来计算全局偏移量，并校验整个语料库。
 
-### Memory-mapped read
+### 内存映射读取
 
-At training time each worker opens its share of HDF5 files in `swmr=True` mode and asks for `tokens[start:stop]`. HDF5's chunk layout makes this a page-cache-backed read once the chunk is hot. The worker never materialises the whole file: the slice is copied into the dataloader's batch buffer, which the dataloader then copies into a pinned-memory training tensor at batch time. The hot path has one syscall per chunk transition; everything else is RAM access.
+训练时，每个工作进程都会以 `swmr=True` 模式打开自己负责的 HDF5 文件，并请求 `tokens[start:stop]`。一旦 chunk 变热，HDF5 的分块布局就会把它变成一次由页缓存支撑的读取。工作进程不会把整个文件具体化到内存中：切片会先拷贝到数据加载器的批缓冲区，随后数据加载器在批次时刻再把它拷贝到固定页内存的训练张量中。热路径上，每次跨 chunk 只需要一次系统调用，其余都是 RAM 访问。
 
-### Sliding-window dataloader
+### 滑动窗口数据加载器
 
-The dataloader is the only stage that knows about training-sequence length. It picks a random start index in the global token stream, reads `window_size + 1` tokens, and returns `(input, target) = (tokens[:-1], tokens[1:])`. Document boundaries are not enforced: a window may straddle two documents, with an explicit `boundary_token_id` between them so the model learns to use the separator. This is the standard packing rule; it is also the rule a beginner forgets, ending up with a corpus that is 8 percent training boundary tokens and 92 percent natural text.
+数据加载器是唯一知道训练序列长度的阶段。它会在全局词元流中随机挑选一个起始索引，读取 `window_size + 1` 个词元，并返回 `(input, target) = (tokens[:-1], tokens[1:])`。这里不会强制文档边界：一个窗口可以跨越两个文档，两者之间用显式的 `boundary_token_id` 分隔，让模型学会利用这个分隔符。这是标准的打包规则；同时也是初学者最容易忘记的规则，忘了之后，语料库就会变成 8% 的训练边界词元和 92% 的自然文本。
 
-## Build It
+## 动手实现
 
-`code/main.py` implements:
+`code/main.py` 实现了：
 
-- `Tokenizer` - a byte-level deterministic tokenizer good enough for the demo. The interface is `encode(text) -> list[int]` and `vocab_size`.
-- `HDF5ShardWriter` - opens a resizable integer dataset, buffers tokens to chunk size, resizes and writes in fixed-size strides, records `token_count` and `sha256` as HDF5 attributes on close.
-- `ShardedTokenizationPipeline` - iterates input documents, routes them to a writer, and emits a `shards.json` index.
-- `MmapTokenStore` - opens shard files for memory-mapped reads, computes global offsets, exposes a single `get_slice(start, stop)` API.
-- `SlidingWindowDataloader` - picks random windows from the global stream and yields `(input_ids, target_ids)` NumPy arrays.
+- `Tokenizer` - 一个字节级、确定性的分词器，足以支撑这个演示。接口是 `encode(text) -> list[int]` 和 `vocab_size`。
+- `HDF5ShardWriter` - 打开一个可调整大小的整数数据集，把词元缓冲到 chunk 大小，按固定步长 resize 并写入，关闭时把 `token_count` 和 `sha256` 记录为 HDF5 属性。
+- `ShardedTokenizationPipeline` - 遍历输入文档，把它们路由给对应的写入器，并输出一个 `shards.json` 索引。
+- `MmapTokenStore` - 打开分片文件以供内存映射读取，计算全局偏移，并暴露统一的 `get_slice(start, stop)` API。
+- `SlidingWindowDataloader` - 从全局词元流中随机抽取窗口，并产出 `(input_ids, target_ids)` NumPy 数组。
 
-A demo at the bottom of the file builds a tiny in-memory corpus, tokenizes into two shards, opens them via memory map, runs the dataloader for 10 batches, and prints the per-batch shape and a checksum.
+文件底部的演示会构建一个很小的内存语料库，把它词元化到两个分片中，经由内存映射重新打开，然后让数据加载器跑 10 个批次，并打印每个批次的形状与校验和。
 
-Run it:
+运行：
 
 ```bash
 python3 code/main.py
 ```
 
-The script exits zero and prints batch checksums.
+脚本会以零状态码退出，并打印批次校验和。
 
-## Production Patterns
+## 生产模式
 
-Four patterns scale this lesson to a real training run.
+有四种模式可以把本课扩展到真实训练中。
 
-**Chunk size equals the typical read.** The trainer reads `window_size + 1` tokens per sample. Set the HDF5 chunk to a multiple of `window_size` and reads are page-cache aligned. Mismatched chunks halve the throughput because every sample touches two chunks.
+**Chunk 大小等于典型读取大小。** 训练器每个样本读取 `window_size + 1` 个词元。把 HDF5 chunk 设为 `window_size` 的倍数，读取就能与页缓存对齐。如果 chunk 不匹配，吞吐量会减半，因为每个样本都会触碰两个 chunk。
 
-**Token count in attributes, not in the dataset.** The trailing slice of the dataset may be partially full because the chunk size does not divide the document boundary. Store the real `token_count` as an HDF5 attribute on the dataset and have the reader truncate at that value. Without this the reader walks off the end into zero-padded tokens and the model learns to predict zero.
+**词元数量存放在属性里，而不是数据集里。** 由于 chunk 大小未必整除文档边界，数据集末尾那段切片可能只部分填满。把真实的 `token_count` 作为 HDF5 属性存到数据集上，并让读取端按这个值截断。否则，读取端会越界读进补零词元，模型就会学着去预测 0。
 
-**Sharded sha256 with parallel verification.** Each shard has its own sha256 over the token bytes. The trainer can verify all shards in parallel before training starts. A wrong sha256 fails the run early, not on epoch three after sixteen hours.
+**按分片计算 sha256，并支持并行校验。** 每个分片都对其词元字节拥有独立的 sha256。训练开始前，训练器可以并行校验所有分片。sha256 一旦错误，就会在训练开始前立刻失败，而不是在 16 小时后的第三个 epoch 才暴露。
 
-**`swmr=True` on both sides, with `libver="latest"` on the writer.** Single-Writer-Multiple-Reader mode requires the writer to open with `libver="latest"`, create every dataset up front, then set `file.swmr_mode = True`. After that the writer must call `dataset.flush()` after each resize so reader workers (opened with `swmr=True`) see consistent data. Skipping `libver="latest"` or enabling SWMR after structural changes is a common source of "file is locked" failures.
+**读写两端都用 `swmr=True`，并让写入端使用 `libver="latest"`。** Single-Writer-Multiple-Reader 模式要求写入端用 `libver="latest"` 打开文件，预先创建所有数据集，然后设置 `file.swmr_mode = True`。之后，写入端必须在每次 resize 后调用 `dataset.flush()`，这样以 `swmr=True` 打开的读取工作进程才能看到一致的数据。跳过 `libver="latest"`，或在结构性变更后再启用 SWMR，都是“file is locked”故障的常见来源。
 
-## Use It
+## 使用它
 
-Production patterns:
+生产实践：
 
-- **One HDF5 per source shard.** The downloader (lesson 42) emits one shard per URL; tokenization (this lesson) emits one HDF5 per source shard. The 1:1 mapping makes resume and partial-failure recovery trivial.
-- **Boundary token id.** The boundary token is part of the tokenizer vocab and is the only token the dataloader injects. The training loss masks the boundary token if the model is supposed to ignore it; otherwise it learns to use it as a sequence separator.
-- **`shards.json` as the source of truth.** Adding a new shard means writing the HDF5, computing its sha256, and appending an entry. The trainer reads the file once at startup and never touches the directory listing.
+- **每个源分片对应一个 HDF5。** 下载器（第 42 课）每个 URL 输出一个分片；词元化（本课）则为每个源分片输出一个 HDF5。1:1 映射让断点续跑和局部失败恢复都变得非常简单。
+- **边界词元 ID。** 边界词元是分词器词表的一部分，也是数据加载器唯一会注入的词元。如果模型应忽略这个词元，训练损失会屏蔽它；否则模型会学会把它当作序列分隔符。
+- **把 `shards.json` 作为唯一事实来源。** 新增一个分片意味着：写出 HDF5、计算它的 sha256、追加一条索引项。训练器启动时只读取一次该文件，之后不再碰目录列表。
 
-## Ship It
+## 交付它
 
-`outputs/skill-hdf5-tokenized-corpus.md` would, on a real project, describe which tokenizer feeds the pipeline, what chunk size matches the trainer's window, where `shards.json` lives in version control, and how dataloader workers are sharded across files. This lesson ships the engine.
+在真实项目中，`outputs/skill-hdf5-tokenized-corpus.md` 会说明：哪一个分词器为流水线供词元、哪种 chunk 大小与训练器窗口匹配、版本控制中的 `shards.json` 位于何处，以及数据加载器工作进程如何按文件分片。本课交付的是引擎。
 
-## Exercises
+## 练习
 
-1. Add a `--compression gzip` flag to the HDF5 writer and measure the throughput cost on the demo corpus. Defend the chosen default.
-2. Add a deterministic seed to the sliding-window dataloader and verify two runs with the same seed produce identical batches.
-3. Add a `--validate` mode that reads every shard, recomputes the sha256 over its tokens, and compares against `shards.json`. CI should run this before training starts.
-4. Compare the dataloader throughput at chunk sizes equal to, half of, and twice the window size. Report the page-cache effect.
-5. Add a `--max-document-tokens` flag that truncates very long documents at write time. Defend the trade-off against deciding at read time.
+1. 为 HDF5 写入器增加一个 `--compression gzip` 标志，并测量它在演示语料库上的吞吐代价。为你选择的默认值做出论证。
+2. 给滑动窗口数据加载器增加一个确定性随机种子，并验证两次使用相同种子的运行会生成完全一致的批次。
+3. 增加一个 `--validate` 模式，读取每个分片，重新计算其词元上的 sha256，并与 `shards.json` 比较。CI 应在训练开始前运行它。
+4. 比较 chunk 大小等于窗口大小、窗口大小的一半、以及窗口大小两倍时的数据加载器吞吐量。报告页缓存效应。
+5. 增加一个 `--max-document-tokens` 标志，在写入时截断超长文档。论证它相对于在读取时再决定的取舍。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|-----------------|------------------------|
-| Resizable dataset | "Append-only" | An HDF5 dataset with `maxshape=(None,)` that grows via `resize` calls in chunk-sized strides |
-| Chunked layout | "How HDF5 stores it" | Fixed-size on-disk pages that the kernel can memory-map and the dataloader can read contiguously |
-| `swmr` mode | "Read-while-write" | Single-Writer-Multiple-Reader mode that lets dataloader workers share the file safely |
-| Shard index | "shards.json" | The durable index of all token shards with offsets and content hashes |
-| Sliding window | "Training sample" | A fixed-length slice of the global token stream that the trainer pairs with its shift-by-one target |
+| 术语 | 人们常说 | 实际含义 |
+|------|----------|----------|
+| 可调整大小数据集 | “只能追加” | 一个带有 `maxshape=(None,)` 的 HDF5 数据集，通过按 chunk 大小步进的 `resize` 调用增长 |
+| 分块布局 | “HDF5 怎么存它” | 固定大小的磁盘页，内核可以对其做内存映射，数据加载器也能连续读取 |
+| `swmr` 模式 | “边写边读” | Single-Writer-Multiple-Reader 模式，让数据加载器工作进程能够安全共享文件 |
+| 分片索引 | “shards.json” | 一个持久索引，记录所有词元分片及其偏移与内容哈希 |
+| 滑动窗口 | “训练样本” | 全局词元流中的固定长度切片，训练器会把它与右移一位的目标配对 |
 
-## Further Reading
+## 延伸阅读
 
-- [HDF5 chunking documentation](https://docs.hdfgroup.org/hdf5/v1_14/) - the chunked, resizable dataset layout this lesson uses
-- [h5py user guide](https://docs.h5py.org/en/stable/) - Python bindings for HDF5
-- [NumPy memory mapping](https://numpy.org/doc/stable/reference/generated/numpy.memmap.html) - the read-side primitive HDF5 exposes through h5py
-- Phase 19 · 42 - the downloader whose output this lesson tokenizes
-- Phase 19 · 44 - the cosine schedule that consumes this dataloader
-- Phase 19 · 45 - the AMP loop that wraps the training step
+- [HDF5 chunking documentation](https://docs.hdfgroup.org/hdf5/v1_14/) - 本课使用的分块、可调整大小数据集布局
+- [h5py user guide](https://docs.h5py.org/en/stable/) - HDF5 的 Python 绑定
+- [NumPy memory mapping](https://numpy.org/doc/stable/reference/generated/numpy.memmap.html) - HDF5 通过 h5py 暴露出的读取侧原语
+- 第 19 阶段 · 42 - 本课对其输出进行词元化的下载器
+- 第 19 阶段 · 44 - 消费此数据加载器的余弦调度
+- 第 19 阶段 · 45 - 包裹训练步骤的 AMP 循环

@@ -1,93 +1,93 @@
-# Capstone Lesson 28: Observability with OTel GenAI Spans and Prometheus Metrics
+# 毕业项目课程 28：使用 OTel GenAI span 与 Prometheus 指标实现可观测性
 
-> An agent harness without observability is a black box that costs money. This lesson hand-rolls a span builder that emits records compliant with the OpenTelemetry GenAI semantic conventions, writes them to a JSON-Lines file one span per line, and exposes counters and histograms in Prometheus text format. The whole thing is stdlib Python and runs offline.
+> 没有可观测性的智能体运行框架，就是一个会烧钱的黑盒。本课手写一个 span 构建器 (span builder)：它发出符合 OpenTelemetry GenAI 语义约定 (semantic conventions) 的记录，把它们写入一个 JSON-Lines 文件（每行一个 span），并以 Prometheus 文本格式暴露 counter 与 histogram。整个实现只用 stdlib Python，并且可以离线运行。
 
-**Type:** Build
-**Languages:** Python (stdlib)
-**Prerequisites:** Phase 19 · 25 (verification gates), Phase 19 · 26 (sandbox), Phase 19 · 27 (eval harness), Phase 13 · 20 (OpenTelemetry GenAI), Phase 14 · 23 (OTel GenAI conventions)
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python（stdlib）
+**前置条件：** 第 19 阶段 · 25（验证门），第 19 阶段 · 26（沙箱），第 19 阶段 · 27（eval harness），第 13 阶段 · 20（OpenTelemetry GenAI），第 14 阶段 · 23（OTel GenAI 约定）
+**时间：** ~90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Build a span data class shaped to the OpenTelemetry GenAI semantic conventions.
-- Implement a JSONL exporter that writes one self-contained span per line.
-- Build counters and histograms with labels and Prometheus text-format exposition.
-- Wrap any callable in a span context manager that records duration, status, and exceptions.
-- Verify that the emitted spans roundtrip through `json.loads` and match the spec shape.
+- 构建一个符合 OpenTelemetry GenAI semantic conventions 形状的 span dataclass。
+- 实现一个 JSONL exporter，每行写入一个自包含的 span。
+- 构建带标签的 counter 与 histogram，并以 Prometheus 文本展示格式导出。
+- 把任意 callable 包进一个 span context manager，记录 duration、status 与 exceptions。
+- 验证发出的 span 能通过 `json.loads` 往返解析，并符合规范形状。
 
-## The Problem
+## 问题
 
-A coding agent in production produces three classes of artifact every turn: a model call, a tool execution, and a verification gate decision. None of these are useful without structured telemetry.
+生产环境中的编码智能体，每一轮都会产出三类 artifact：一次模型调用、一次工具执行，以及一次验证门决策。如果没有结构化遥测，这三者都几乎没有价值。
 
-The first failure mode is the missing trace. Something went wrong on Tuesday but the only record is a 500-line chat log. There is no record of which tool ran, how long it took, how many tokens went into the prompt, or whether the gate refused anything. The agent author has to guess.
+第一种失败模式是“缺失的 trace”。周二出了问题，但唯一留下的是一份 500 行的聊天日志。没有记录说明到底哪个工具跑了、耗时多久、多少 token 进入了 prompt，或者 gate 是否拒绝过什么。智能体作者只能猜。
 
-The second failure mode is the unparseable trace. The harness wrote spans but used its own ad-hoc field names. Nothing in Grafana, Honeycomb, Jaeger, or the local CLI can read them. Whatever tooling exists in the team's stack is wasted because the spans are non-standard.
+第二种失败模式是“不可解析的 trace”。运行框架确实写了 span，却用了自己随意起的字段名。Grafana、Honeycomb、Jaeger，甚至本地 CLI，全都读不懂。团队栈里已有的任何可观测性工具都会因此失效，因为 span 不是标准格式。
 
-The third failure mode is the unaggregated metric. You can see one slow tool call in the trace, but you cannot answer "what is the p95 latency of read_file calls over the last hour?" because there are no metrics, only traces.
+第三种失败模式是“无法聚合的 metric”。你可以在 trace 里看到一次很慢的工具调用，却回答不了“过去一小时里 read_file 调用的 p95 延迟是多少？”因为你只有 trace，没有 metrics。
 
-The OpenTelemetry GenAI semantic conventions exist exactly for this. They define a small set of standard attributes that span emitters across LLM frameworks share. If your harness writes those attributes, every OTel-compatible backend can read them.
+OpenTelemetry GenAI semantic conventions 存在的意义正是这个。它们定义了一组小而标准的属性键，供不同 LLM 框架的 span 发射器共享。只要你的运行框架写出这些属性，任何兼容 OTel 的后端都能读取。
 
-## The Concept
+## 概念
 
 ```mermaid
 flowchart TD
-  Call[tool call / model call / gate decision] --> Span["SpanBuilder.span()<br/>context manager"]
+  Call[工具调用 / 模型调用 / gate 决策] --> Span["SpanBuilder.span()"<br/>上下文管理器]
   Span --> GenAI[GenAISpan<br/>trace_id / span_id / name<br/>attributes:<br/>gen_ai.system<br/>gen_ai.request.*<br/>gen_ai.usage.*<br/>start, end, status]
   GenAI --> Writer[JSONLWriter]
   GenAI --> Metrics[MetricsRegistry]
   Writer --> Traces[traces.jsonl]
-  Metrics --> Prom[/metrics text/]
+  Metrics --> Prom[/metrics 文本/]
 ```
 
-Every operation in the harness produces a span. A span has a trace id (the whole agent invocation), a span id (this one operation), a name (e.g. `gen_ai.chat`, `gen_ai.tool.execution`), attributes that follow the GenAI conventions, a start and end time, and a status.
+运行框架中的每个操作都会产出一个 span。span 有一个 trace id（整个智能体调用）、一个 span id（当前这次操作）、一个名字（例如 `gen_ai.chat`、`gen_ai.tool.execution`）、一组遵循 GenAI 约定的 attributes，以及开始时间、结束时间和状态。
 
-The GenAI conventions standardise these attribute keys: `gen_ai.system` (which provider, e.g. `anthropic`, `openai`), `gen_ai.request.model` (the model id), `gen_ai.request.max_tokens`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens`, `gen_ai.response.model`, `gen_ai.response.id`, `gen_ai.operation.name`, plus tool-specific keys `gen_ai.tool.name` and `gen_ai.tool.call.id`.
+GenAI 约定标准化了这些属性键：`gen_ai.system`（提供方，例如 `anthropic`、`openai`）、`gen_ai.request.model`（模型 id）、`gen_ai.request.max_tokens`、`gen_ai.usage.input_tokens`、`gen_ai.usage.output_tokens`、`gen_ai.response.model`、`gen_ai.response.id`、`gen_ai.operation.name`，以及工具专属键 `gen_ai.tool.name` 和 `gen_ai.tool.call.id`。
 
-The exporter writes JSONL. One JSON object per line. This is the simplest possible format that downstream tooling can stream, grep, and import. A real OTel exporter would speak OTLP gRPC; the lesson's JSONL exporter is the offline equivalent and exits zero on every workstation.
+exporter 输出 JSONL，也就是每行一个 JSON 对象。这是下游工具最容易流式处理、grep 和导入的格式。真正的 OTel exporter 会走 OTLP gRPC；本课的 JSONL exporter 则是它的离线等价物，并能在任何工作站上以零退出。
 
-Metrics live next to traces. A counter increments on each tool call: `tools_called_total{tool="read_file"}`. A histogram records the observed latency: `tool_latency_ms{tool="read_file"}`. Both serialise into Prometheus text exposition format, which is the de-facto standard for pull-based metrics.
+metric 与 trace 并列存在。每次工具调用，counter 都会加一：`tools_called_total{tool="read_file"}`。histogram 则记录观察到的延迟：`tool_latency_ms{tool="read_file"}`。两者都会序列化成 Prometheus 的文本暴露格式，这是拉取式指标事实上的标准。
 
-## Architecture
+## 架构
 
 ```mermaid
 flowchart LR
-  Harness[AgentHarness<br/>lessons 25-27] --> Span[SpanBuilder<br/>context mgr / attrs / status]
+  Harness[AgentHarness<br/>第 25-27 课] --> Span[SpanBuilder<br/>context mgr / attrs / status]
   Span --> Exporter[JSONLExporter<br/>traces.jsonl]
   Span --> Metrics[MetricsRegistry<br/>counters / histograms]
-  Metrics --> Prom[Prometheus text<br/>exposition]
+  Metrics --> Prom[Prometheus 文本<br/>暴露格式]
 ```
 
-The span builder is a small class with a `span(name, attrs)` method that returns a context manager. The context manager records start time on enter, records end time on exit, attaches an exception if one was raised, and pushes the finalised span to the exporter.
+span builder 是一个小类，提供 `span(name, attrs)` 方法，返回一个上下文管理器。该上下文管理器在进入时记录开始时间，退出时记录结束时间，若有异常则附加异常信息，并把最终完成的 span 推送给 exporter。
 
-The metrics registry is two dicts. Counters are `{(name, frozen_labels): int}`. Histograms keep raw samples in a list and serialise to Prometheus histogram buckets at exposition time.
+metrics registry 本质上是两个 dict。counter 的形状是 `{(name, frozen_labels): int}`。histogram 则把原始样本保存在列表中，并在暴露时按需序列化成 Prometheus histogram bucket。
 
-## What you will build
+## 你将构建什么
 
-`main.py` ships:
+`main.py` 提供：
 
-1. `GenAISpan` dataclass: trace_id, span_id, parent_span_id, name, attributes, start_unix_nano, end_unix_nano, status, status_message, events.
-2. `SpanBuilder` class with `span(name, attrs, parent=None)` context manager.
-3. `JSONLExporter` class with `export(span)` that appends one line.
-4. `Counter` and `Histogram` classes plus `MetricsRegistry`.
-5. `prometheus_exposition(registry)` that produces text-format output.
-6. `wrap_tool_call(name)` decorator that emits a span and updates metrics.
-7. Demo: synthesises a complete agent invocation (gen_ai.chat span around tool spans), writes traces.jsonl, prints the Prometheus exposition, exits zero.
+1. `GenAISpan` dataclass：trace_id、span_id、parent_span_id、name、attributes、start_unix_nano、end_unix_nano、status、status_message、events。
+2. `SpanBuilder` 类，带 `span(name, attrs, parent=None)` 上下文管理器。
+3. `JSONLExporter` 类，提供 `export(span)`，每次追加一行。
+4. `Counter` 与 `Histogram` 类，以及 `MetricsRegistry`。
+5. `prometheus_exposition(registry)`，生成文本格式输出。
+6. `wrap_tool_call(name)` 装饰器，用于发出 span 并更新 metrics。
+7. 演示：合成一次完整的智能体调用（在工具 span 外包一层 `gen_ai.chat` span），写出 `traces.jsonl`，打印 Prometheus 暴露文本，并以零退出。
 
-The span id and trace id are 16-byte hex strings, generated from `os.urandom`. That matches OTel's W3C trace context. The exporter never throws; IO errors are surfaced but the harness keeps running.
+span id 与 trace id 都是 16 字节十六进制字符串，由 `os.urandom` 生成。这与 OTel 的 W3C trace context 一致。exporter 绝不会抛异常；I/O 错误会被暴露出来，但运行框架会继续运行。
 
-The histogram has a fixed bucket set (the OTel default for latency in milliseconds: 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000, +Inf). Samples are stored as a list; exposition computes per-bucket counts on demand.
+histogram 使用固定 bucket 集合（OTel 在毫秒级延迟上的默认 bucket：5、10、25、50、100、250、500、1000、2500、5000、10000、+Inf）。样本以列表保存；暴露时再按需计算各 bucket 计数。
 
-## Why hand-rolled instead of opentelemetry-sdk
+## 为什么手写，而不是直接用 opentelemetry-sdk
 
-The OTel Python SDK is a real dependency. It is also several thousand lines of code, multiple processes for the OTLP exporter, and a runtime cost that swamps a lesson budget. The hand-rolled version teaches the wire format. In production you wire the same attributes into the real SDK and get the OTLP exporter, batching, and resource detection for free.
+OTel Python SDK 是一个真实依赖。它也意味着数千行代码、OTLP exporter 牵涉的多个进程，以及足以压垮课程预算的运行时成本。手写版本教的是线上格式。到了生产环境，你把相同属性接到真正的 SDK 上，就能免费获得 OTLP exporter、批处理与资源探测。
 
-The conventions are stable. The wire format the lesson emits will keep parsing in 2030 because OTel never breaks GenAI attribute names; they only add new ones.
+这些约定是稳定的。只要 OTel 不会破坏 GenAI 属性名（它们只会新增，不会改坏），本课发出的线上格式到 2030 年依然能被解析。
 
-## How this composes with the rest of Track A
+## 它如何与 Track A 的其他内容组合
 
-Lesson 25 produced the gate chain. Lesson 26 produced the sandbox. Lesson 27 produced the eval harness. Lesson 28 makes all three observable. Lesson 29 wraps every step of the end-to-end demo in spans and prints the Prometheus text at the end.
+第 25 课产出了 gate chain。第 26 课产出了 sandbox。第 27 课产出了 eval harness。第 28 课让这三者都具备可观测性。第 29 课则会把端到端演示中的每一步都包进 span，并在最后打印 Prometheus 文本。
 
-## Running it
+## 运行方式
 
 ```bash
 cd phases/19-capstone-projects/28-observability-otel-traces
@@ -95,4 +95,5 @@ python3 code/main.py
 python3 -m pytest code/tests/ -v
 ```
 
-The demo emits a `traces.jsonl` in the lesson's working dir (cleaned up at the end), then prints a sample of three spans, then prints the Prometheus exposition for the counters and histograms. The tests verify that spans serialise round-trip, that the canonical GenAI attributes are present, that counters increment correctly, and that the histogram exposition contains the expected bucket counts.
+演示会在本课工作目录中产出一个 `traces.jsonl`（结束时清理掉），然后打印三条 span 样本，再打印 counter 与 histogram 的 Prometheus 暴露文本。测试会验证：span 能往返序列化、规范中的标准 GenAI 属性都存在、counter 会正确递增，以及 histogram 暴露文本包含预期 bucket 计数。
+

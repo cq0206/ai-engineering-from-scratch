@@ -1,40 +1,40 @@
-# Information Theory
+# 信息论（Information Theory）
 
-> Information theory measures surprise. Loss functions are built on it.
+> 信息论衡量惊奇度。损失函数正是建立在它之上的。
 
-**Type:** Learn
-**Language:** Python
-**Prerequisites:** Phase 1, Lesson 06 (Probability)
-**Time:** ~60 minutes
+**类型：** 学习（Learn）
+**语言：** Python
+**前置条件：** 第一阶段，第06课（概率论）
+**时间：** 约60分钟
 
-## Learning Objectives
+## 学习目标
 
-- Compute entropy, cross-entropy, and KL divergence from scratch and explain their relationship
-- Derive why minimizing cross-entropy loss is equivalent to maximizing log-likelihood
-- Calculate mutual information between features and a target to rank feature importance
-- Explain perplexity as the effective vocabulary size a language model chooses from
+- 从零实现熵（entropy）、交叉熵（cross-entropy）和KL散度（KL divergence），并解释它们之间的关系
+- 推导出最小化交叉熵损失等价于最大化对数似然的原理
+- 计算特征与目标变量之间的互信息（mutual information），以对特征重要性进行排序
+- 解释困惑度（perplexity）作为语言模型选择词汇的有效词表大小的含义
 
-## The Problem
+## 问题背景
 
-You call `CrossEntropyLoss()` in every classification model you train. You see "perplexity" in every language model paper. You read about KL divergence in VAEs, distillation, and RLHF. These are not disconnected concepts. They are all the same idea wearing different hats.
+你在每个分类模型中都会调用 `CrossEntropyLoss()`。你在每篇语言模型论文中都会看到"困惑度"。你在变分自编码器（VAE）、知识蒸馏（distillation）和RLHF中都会读到KL散度。这些并非孤立的概念——它们都是同一个思想披着不同的外衣。
 
-Information theory gives you the language to reason about uncertainty, compression, and prediction. Claude Shannon invented it in 1948 to solve communication problems. Turns out, training a neural network is a communication problem: the model is trying to transmit the correct label through a noisy channel of learned weights.
+信息论为你提供了推理不确定性、压缩和预测的语言。克劳德·香农（Claude Shannon）于1948年发明了它，用于解决通信问题。事实证明，训练神经网络也是一个通信问题：模型试图通过学习权重这条嘈杂的信道来传递正确的标签。
 
-This lesson builds every formula from scratch so you see where they come from and why they work.
+本课将从零推导每一个公式，让你看清它们的来源以及它们为何有效。
 
-## The Concept
+## 核心概念
 
-### Information Content (Surprise)
+### 信息量（Surprise，自信息）
 
-When something unlikely happens, it carries more information. A coin landing heads? Not surprising. A lottery win? Very surprising.
+当不太可能发生的事情发生时，它携带更多的信息。硬币正面朝上？不令人惊讶。彩票中奖？非常令人惊讶。
 
-The information content of an event with probability p is:
+概率为 p 的事件的信息量为：
 
 ```
 I(x) = -log(p(x))
 ```
 
-Using log base 2 gives you bits. Using natural log gives you nats. Same idea, different units.
+以2为底的对数给出比特（bits）。以自然对数给出奈特（nats）。思路相同，单位不同。
 
 ```
 Event              Probability    Surprise (bits)
@@ -44,112 +44,112 @@ Rolling a 6        0.167          2.58
 Certain event      1.0            0.0
 ```
 
-Certain events carry zero information. You already knew they would happen.
+确定发生的事件携带零信息。你早就知道它会发生。
 
-### Entropy (Average Surprise)
+### 熵（Entropy，平均惊奇度）
 
-Entropy is the expected surprise across all possible outcomes of a distribution.
+熵是分布所有可能结果的期望惊奇度。
 
 ```
 H(P) = -sum( p(x) * log(p(x)) )  for all x
 ```
 
-A fair coin has maximum entropy for a binary variable: 1 bit. A biased coin (99% heads) has low entropy: 0.08 bits. You already know what will happen, so each flip tells you almost nothing.
+对于二元变量，公平硬币具有最大熵：1比特。有偏硬币（99%正面朝上）熵很低：0.08比特。你已经知道会发生什么，因此每次翻转几乎不告诉你任何新信息。
 
 ```
 Fair coin:    H = -(0.5 * log2(0.5) + 0.5 * log2(0.5)) = 1.0 bit
 Biased coin:  H = -(0.99 * log2(0.99) + 0.01 * log2(0.01)) = 0.08 bits
 ```
 
-Entropy measures the irreducible uncertainty in a distribution. You cannot compress below it.
+熵衡量分布中不可消除的不确定性。你无法将其压缩到熵以下。
 
-### Cross-Entropy (The Loss Function You Use Every Day)
+### 交叉熵（Cross-Entropy，你每天使用的损失函数）
 
-Cross-entropy measures the average surprise when you use distribution Q to encode events that actually come from distribution P.
+交叉熵衡量当你使用分布 Q 来编码实际来自分布 P 的事件时的平均惊奇度。
 
 ```
 H(P, Q) = -sum( p(x) * log(q(x)) )  for all x
 ```
 
-P is the true distribution (the labels). Q is your model's predictions. If Q matches P perfectly, cross-entropy equals entropy. Any mismatch makes it larger.
+P 是真实分布（标签），Q 是模型的预测。如果 Q 完美匹配 P，交叉熵等于熵。任何不匹配都会使其增大。
 
-In classification, P is a one-hot vector (the true class has probability 1, everything else 0). This simplifies cross-entropy to:
+在分类中，P 是独热向量（one-hot vector，真实类别概率为1，其余为0）。这将交叉熵简化为：
 
 ```
 H(P, Q) = -log(q(true_class))
 ```
 
-That is the entire cross-entropy loss formula for classification. Maximize the predicted probability of the correct class.
+这就是分类交叉熵损失的完整公式。最大化正确类别的预测概率。
 
-### KL Divergence (Distance Between Distributions)
+### KL散度（KL Divergence，分布间的距离）
 
-KL divergence measures how much extra surprise you get from using Q instead of P.
+KL散度衡量使用 Q 代替 P 所带来的额外惊奇度。
 
 ```
 D_KL(P || Q) = sum( p(x) * log(p(x) / q(x)) )  for all x
              = H(P, Q) - H(P)
 ```
 
-Cross-entropy is entropy plus KL divergence. Since entropy of the true distribution is constant during training, minimizing cross-entropy is the same as minimizing KL divergence. You are pushing your model's distribution toward the true distribution.
+交叉熵等于熵加上KL散度。由于训练过程中真实分布的熵是常数，最小化交叉熵等价于最小化KL散度。你在将模型的分布推向真实分布。
 
-KL divergence is not symmetric: D_KL(P || Q) != D_KL(Q || P). It is not a true distance metric.
+KL散度不是对称的：D_KL(P || Q) != D_KL(Q || P)。它不是一个真正的距离度量。
 
-### Mutual Information
+### 互信息（Mutual Information）
 
-Mutual information measures how much knowing one variable tells you about another.
+互信息衡量知道一个变量能告诉你多少关于另一个变量的信息。
 
 ```
 I(X; Y) = H(X) - H(X|Y)
         = H(X) + H(Y) - H(X, Y)
 ```
 
-If X and Y are independent, mutual information is zero. Knowing one tells you nothing about the other. If they are perfectly correlated, mutual information equals the entropy of either variable.
+如果 X 和 Y 相互独立，互信息为零。知道一个并不能告诉你另一个的信息。如果它们完全相关，互信息等于任一变量的熵。
 
-In feature selection, high mutual information between a feature and the target means the feature is useful. Low mutual information means it is noise.
+在特征选择中，特征与目标之间的高互信息意味着该特征有用。低互信息意味着它是噪声。
 
-### Conditional Entropy
+### 条件熵（Conditional Entropy）
 
-H(Y|X) measures how much uncertainty remains about Y after you observe X.
+H(Y|X) 衡量在观测到 X 之后，Y 中剩余的不确定性。
 
 ```
 H(Y|X) = H(X,Y) - H(X)
 ```
 
-Two extremes:
-- If X completely determines Y, then H(Y|X) = 0. Knowing X eliminates all uncertainty about Y. Example: X = temperature in Celsius, Y = temperature in Fahrenheit.
-- If X tells you nothing about Y, then H(Y|X) = H(Y). Knowing X does not reduce your uncertainty at all. Example: X = coin flip, Y = tomorrow's weather.
+两种极端情况：
+- 如果 X 完全决定了 Y，则 H(Y|X) = 0。知道 X 消除了关于 Y 的所有不确定性。例如：X 是摄氏温度，Y 是华氏温度。
+- 如果 X 对 Y 没有任何提示，则 H(Y|X) = H(Y)。知道 X 完全不减少你对 Y 的不确定性。例如：X 是抛硬币结果，Y 是明天的天气。
 
-Conditional entropy is always non-negative and never exceeds H(Y):
+条件熵始终非负，且不超过 H(Y)：
 
 ```
 0 <= H(Y|X) <= H(Y)
 ```
 
-In machine learning, conditional entropy appears in decision trees. At each split, the algorithm picks the feature X that minimizes H(Y|X) -- the feature that removes the most uncertainty about the label Y.
+在机器学习中，条件熵出现在决策树（decision tree）中。在每次分裂时，算法选择能最小化 H(Y|X) 的特征 X——即能最大程度消除标签 Y 不确定性的特征。
 
-### Joint Entropy
+### 联合熵（Joint Entropy）
 
-H(X,Y) is the entropy of the joint distribution of X and Y together.
+H(X,Y) 是 X 和 Y 联合分布的熵。
 
 ```
 H(X,Y) = -sum sum p(x,y) * log(p(x,y))   for all x, y
 ```
 
-Key property:
+关键性质：
 
 ```
 H(X,Y) <= H(X) + H(Y)
 ```
 
-Equality holds when X and Y are independent. If they share information, the joint entropy is less than the sum of individual entropies. The "missing" entropy is exactly the mutual information.
+当 X 和 Y 相互独立时等号成立。如果它们共享信息，联合熵小于各自熵之和。"缺失"的熵恰好就是互信息。
 
 ```mermaid
 graph TD
-    subgraph "Information Venn Diagram"
+    subgraph "信息韦恩图"
         direction LR
         HX["H(X)"]
         HY["H(Y)"]
-        MI["I(X;Y)<br/>Mutual<br/>Information"]
+        MI["I(X;Y)<br/>互信息"]
         HXgY["H(X|Y)<br/>= H(X) - I(X;Y)"]
         HYgX["H(Y|X)<br/>= H(Y) - I(X;Y)"]
         HXY["H(X,Y) = H(X) + H(Y) - I(X;Y)"]
@@ -166,14 +166,14 @@ graph TD
     HXY -.- HYgX
 ```
 
-The relationships:
+各关系式：
 - H(X,Y) = H(X) + H(Y|X) = H(Y) + H(X|Y)
 - I(X;Y) = H(X) - H(X|Y) = H(Y) - H(Y|X)
 - H(X,Y) = H(X) + H(Y) - I(X;Y)
 
-### Mutual Information (Deep Dive)
+### 互信息（深入探讨）
 
-Mutual information I(X;Y) quantifies how much knowing one variable reduces uncertainty about the other.
+互信息 I(X;Y) 量化了知道一个变量能减少多少关于另一个变量的不确定性。
 
 ```
 I(X;Y) = H(X) - H(X|Y)
@@ -182,61 +182,61 @@ I(X;Y) = H(X) - H(X|Y)
        = sum sum p(x,y) * log(p(x,y) / (p(x) * p(y)))
 ```
 
-Properties:
-- I(X;Y) >= 0 always. You never lose information by observing something.
-- I(X;Y) = 0 if and only if X and Y are independent.
-- I(X;Y) = I(Y;X). It is symmetric, unlike KL divergence.
-- I(X;X) = H(X). A variable shares all its information with itself.
+性质：
+- I(X;Y) >= 0 始终成立。观测某事件永远不会损失信息。
+- I(X;Y) = 0 当且仅当 X 和 Y 相互独立。
+- I(X;Y) = I(Y;X)。它是对称的，与KL散度不同。
+- I(X;X) = H(X)。变量与自身共享全部信息。
 
-**Mutual information for feature selection.** In ML, you want features that are informative about the target. Mutual information gives you a principled way to rank features:
+**互信息用于特征选择。** 在机器学习中，你希望特征对目标具有信息量。互信息为特征排序提供了一种有原则的方法：
 
-1. For each feature X_i, compute I(X_i; Y) where Y is the target variable.
-2. Rank features by MI score.
-3. Keep the top k features.
+1. 对每个特征 X_i，计算 I(X_i; Y)，其中 Y 是目标变量。
+2. 按互信息得分对特征排序。
+3. 保留前 k 个特征。
 
-This works for any relationship between feature and target -- linear, nonlinear, monotonic, or not. Correlation only catches linear relationships. MI catches everything.
+这适用于特征与目标之间的任何关系——线性的、非线性的、单调的或非单调的。相关系数只能捕捉线性关系，而互信息能捕捉所有关系。
 
-| Method | Detects | Computational cost | Handles categorical? |
+| 方法 | 可检测的关系 | 计算代价 | 支持类别变量？ |
 |--------|---------|-------------------|---------------------|
-| Pearson correlation | Linear relationships | O(n) | No |
-| Spearman correlation | Monotonic relationships | O(n log n) | No |
-| Mutual information | Any statistical dependency | O(n log n) with binning | Yes |
+| 皮尔逊相关系数（Pearson correlation） | 线性关系 | O(n) | 否 |
+| 斯皮尔曼相关系数（Spearman correlation） | 单调关系 | O(n log n) | 否 |
+| 互信息（Mutual information） | 任意统计依赖关系 | O(n log n)（含分箱） | 是 |
 
-### Label Smoothing and Cross-Entropy
+### 标签平滑（Label Smoothing）与交叉熵
 
-Standard classification uses hard targets: [0, 0, 1, 0]. The true class gets probability 1, everything else gets 0. Label smoothing replaces these with soft targets:
+标准分类使用硬标签：[0, 0, 1, 0]。真实类别概率为1，其余为0。标签平滑用软标签替代：
 
 ```
 soft_target = (1 - epsilon) * hard_target + epsilon / num_classes
 ```
 
-With epsilon = 0.1 and 4 classes:
-- Hard target:  [0, 0, 1, 0]
-- Soft target:  [0.025, 0.025, 0.925, 0.025]
+当 epsilon = 0.1，类别数为4时：
+- 硬标签：[0, 0, 1, 0]
+- 软标签：[0.025, 0.025, 0.925, 0.025]
 
-From an information theory perspective, label smoothing increases the entropy of the target distribution. Hard one-hot targets have entropy 0 -- there is no uncertainty. Soft targets have positive entropy.
+从信息论角度来看，标签平滑增加了目标分布的熵。独热硬标签的熵为0——没有不确定性。软标签具有正熵。
 
-Why this helps:
-- Prevents the model from driving logits to extreme values (infinite logits would be needed to perfectly match a one-hot target under cross-entropy)
-- Acts as regularization: the model cannot be 100% confident
-- Improves calibration: predicted probabilities better reflect true uncertainty
-- Reduces the gap between training and inference behavior
+这样做的好处：
+- 防止模型将对数几率（logits）推向极端值（完美匹配独热标签的交叉熵需要无穷大的对数几率）
+- 作为正则化：模型不能100%自信
+- 改善校准（calibration）：预测概率更好地反映真实不确定性
+- 减小训练行为与推理行为之间的差距
 
-The cross-entropy loss with label smoothing becomes:
+带标签平滑的交叉熵损失变为：
 
 ```
 L = (1 - epsilon) * CE(hard_target, prediction) + epsilon * H_uniform(prediction)
 ```
 
-The second term penalizes predictions that are far from uniform -- a direct regularization on confidence.
+第二项惩罚偏离均匀分布的预测——是对置信度的直接正则化。
 
-### Why Cross-Entropy Is THE Classification Loss
+### 为什么交叉熵是分类任务的首选损失
 
-Three perspectives, same conclusion.
+三种视角，同一个结论。
 
-**Information theory view.** Cross-entropy measures how many bits you waste by using your model's distribution instead of the true distribution. Minimizing it makes your model the most efficient encoder of reality.
+**信息论视角。** 交叉熵衡量使用模型分布而非真实分布所浪费的比特数。最小化它使模型成为现实最高效的编码器。
 
-**Maximum likelihood view.** For N training samples with true classes y_i:
+**最大似然视角。** 对于 N 个训练样本，真实类别为 y_i：
 
 ```
 Likelihood     = product( q(y_i) )
@@ -244,13 +244,13 @@ Log-likelihood = sum( log(q(y_i)) )
 Negative log-likelihood = -sum( log(q(y_i)) )
 ```
 
-That last line is cross-entropy loss. Minimizing cross-entropy = maximizing the likelihood of the training data under your model.
+最后一行就是交叉熵损失。最小化交叉熵 = 最大化训练数据在模型下的似然。
 
-**Gradient view.** The gradient of cross-entropy with respect to the logits is simply (predicted - true). Clean, stable, and fast to compute. This is why it pairs perfectly with softmax.
+**梯度视角。** 交叉熵关于对数几率的梯度就是（预测值 - 真实值）。简洁、稳定，计算速度快。这就是它与 softmax 完美搭配的原因。
 
-### Bits vs Nats
+### 比特（Bits）与奈特（Nats）
 
-The only difference is the log base.
+唯一的区别是对数的底。
 
 ```
 log base 2   -> bits      (information theory tradition)
@@ -258,24 +258,24 @@ log base e   -> nats      (machine learning convention)
 log base 10  -> hartleys  (rarely used)
 ```
 
-1 nat = 1/ln(2) bits = 1.4427 bits. PyTorch and TensorFlow use natural log (nats) by default.
+1奈特 = 1/ln(2) 比特 = 1.4427 比特。PyTorch 和 TensorFlow 默认使用自然对数（奈特）。
 
-### Perplexity
+### 困惑度（Perplexity）
 
-Perplexity is the exponential of cross-entropy. It tells you the effective number of equally likely choices the model is uncertain between.
+困惑度是交叉熵的指数。它告诉你模型在不确定时等效地从多少个等可能选项中进行选择。
 
 ```
 Perplexity = 2^H(P,Q)   (if using bits)
 Perplexity = e^H(P,Q)   (if using nats)
 ```
 
-A language model with perplexity 50 is, on average, as confused as if it had to pick uniformly from 50 possible next tokens. Lower is better.
+困惑度为50的语言模型，平均而言就像是在50个可能的下一个词元中均匀地随机选择。越低越好。
 
-GPT-2 achieved perplexity ~30 on common benchmarks. Modern models are in the single digits for well-represented domains.
+GPT-2 在常见基准测试上达到约30的困惑度。现代模型在表示充分的领域中已进入个位数。
 
-## Build It
+## 动手实现
 
-### Step 1: Information content and entropy
+### 第一步：信息量与熵
 
 ```python
 import math
@@ -300,7 +300,7 @@ print(f"Biased coin entropy: {entropy(biased_coin):.4f} bits")
 print(f"Fair die entropy:    {entropy(fair_die):.4f} bits")
 ```
 
-### Step 2: Cross-entropy and KL divergence
+### 第二步：交叉熵与KL散度
 
 ```python
 def cross_entropy(p, q, base=2):
@@ -326,7 +326,7 @@ print(f"KL divergence (good):     {kl_divergence(true_dist, good_model):.4f} bit
 print(f"KL divergence (bad):      {kl_divergence(true_dist, bad_model):.4f} bits")
 ```
 
-### Step 3: Cross-entropy as classification loss
+### 第三步：交叉熵作为分类损失
 
 ```python
 def softmax(logits):
@@ -352,7 +352,7 @@ print(f"Loss:        {loss:.4f} nats")
 print(f"Perplexity:  {math.exp(loss):.2f}")
 ```
 
-### Step 4: Cross-entropy equals negative log-likelihood
+### 第四步：交叉熵等价于负对数似然
 
 ```python
 import random
@@ -379,7 +379,7 @@ print(f"Negative log-likelihood: {nll:.6f}")
 print(f"Difference:              {abs(ce_loss - nll):.2e}")
 ```
 
-### Step 5: Mutual information
+### 第五步：互信息
 
 ```python
 def mutual_information(joint_probs, base=2):
@@ -404,9 +404,9 @@ print(f"MI (independent): {mutual_information(independent):.4f} bits")
 print(f"MI (dependent):   {mutual_information(dependent):.4f} bits")
 ```
 
-## Use It
+## 实践应用
 
-The same concepts using NumPy, the way you will use them in practice:
+使用NumPy的相同概念——这是你在实践中使用的方式：
 
 ```python
 import numpy as np
@@ -433,35 +433,35 @@ print(f"Cross-ent:  {np_cross_entropy(true, pred):.4f} nats")
 print(f"KL div:     {np_kl_divergence(true, pred):.4f} nats")
 ```
 
-You built from scratch what `torch.nn.CrossEntropyLoss()` does internally. Now you know why the loss goes down during training: your model's predicted distribution is getting closer to the true distribution, measured in nats of wasted information.
+你从零构建了 `torch.nn.CrossEntropyLoss()` 内部的原理。现在你明白了为什么训练期间损失会下降：模型的预测分布正在逼近真实分布，以奈特为单位衡量浪费的信息量。
 
-## Exercises
+## 练习题
 
-1. Compute the entropy of the English alphabet assuming uniform distribution (26 letters). Then estimate it using actual letter frequencies. Which is higher and why?
+1. 假设英文字母均匀分布（26个字母），计算其熵。再使用实际字母频率估算熵。哪个更高？为什么？
 
-2. A model outputs logits [5.0, 2.0, 0.5] for a sample with true class 1. Compute the cross-entropy loss by hand, then verify with your `cross_entropy_loss` function. What logits would give zero loss?
+2. 模型对某样本输出对数几率 [5.0, 2.0, 0.5]，真实类别为1。手动计算交叉熵损失，再用你的 `cross_entropy_loss` 函数验证。什么样的对数几率会得到零损失？
 
-3. Show that KL divergence is not symmetric. Pick two distributions P and Q and compute D_KL(P || Q) and D_KL(Q || P). Explain why they differ.
+3. 证明KL散度不是对称的。选取两个分布 P 和 Q，分别计算 D_KL(P || Q) 和 D_KL(Q || P)，并解释为何它们不同。
 
-4. Build a function that computes perplexity for a sequence of token predictions. Given a list of (true_token_index, predicted_logits) pairs, return the perplexity of the sequence.
+4. 构建一个计算词元预测序列困惑度的函数。给定一组（真实词元索引, 预测对数几率）对，返回该序列的困惑度。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 常见说法 | 实际含义 |
 |------|----------------|----------------------|
-| Information content | "Surprise" | The number of bits (or nats) needed to encode an event: -log(p) |
-| Entropy | "Randomness" | The average surprise across all outcomes of a distribution. Measures irreducible uncertainty. |
-| Cross-entropy | "The loss function" | Average surprise when using model distribution Q to encode events from true distribution P. |
-| KL divergence | "Distance between distributions" | Extra bits wasted by using Q instead of P. Equals cross-entropy minus entropy. Not symmetric. |
-| Mutual information | "How related are X and Y" | Reduction in uncertainty about X from knowing Y. Zero means independent. |
-| Softmax | "Turn logits into probabilities" | Exponentiate and normalize. Maps any real-valued vector to a valid probability distribution. |
-| Perplexity | "How confused the model is" | Exponential of cross-entropy. The effective vocabulary size the model is choosing from at each step. |
-| Bits | "Shannon's unit" | Information measured with log base 2. One bit resolves one fair coin flip. |
-| Nats | "ML's unit" | Information measured with natural log. Used by PyTorch and TensorFlow by default. |
-| Negative log-likelihood | "NLL loss" | Identical to cross-entropy loss for one-hot labels. Minimizing it maximizes the probability of correct predictions. |
+| 信息量（Information content） | "惊奇度" | 编码一个事件所需的比特数（或奈特数）：-log(p) |
+| 熵（Entropy） | "随机性" | 分布所有结果的平均惊奇度。衡量不可消除的不确定性。 |
+| 交叉熵（Cross-entropy） | "损失函数" | 使用模型分布 Q 编码来自真实分布 P 的事件时的平均惊奇度。 |
+| KL散度（KL divergence） | "分布间的距离" | 使用 Q 代替 P 所浪费的额外比特数。等于交叉熵减去熵。不对称。 |
+| 互信息（Mutual information） | "X和Y有多相关" | 知道 Y 后对 X 不确定性的减少量。零表示相互独立。 |
+| Softmax | "将对数几率转为概率" | 取指数并归一化。将任意实值向量映射为有效的概率分布。 |
+| 困惑度（Perplexity） | "模型有多困惑" | 交叉熵的指数。模型在每一步从中选择的有效词表大小。 |
+| 比特（Bits） | "香农的单位" | 以2为底的对数度量的信息量。1比特解决一次公平硬币翻转。 |
+| 奈特（Nats） | "机器学习的单位" | 以自然对数度量的信息量。PyTorch和TensorFlow默认使用。 |
+| 负对数似然（Negative log-likelihood） | "NLL损失" | 对独热标签而言与交叉熵损失等价。最小化它等价于最大化正确预测的概率。 |
 
-## Further Reading
+## 延伸阅读
 
-- [Shannon 1948: A Mathematical Theory of Communication](https://people.math.harvard.edu/~ctm/home/text/others/shannon/entropy/entropy.pdf) - the original paper, still readable
-- [Visual Information Theory (Chris Olah)](https://colah.github.io/posts/2015-09-Visual-Information/) - best visual explanation of entropy and KL divergence
-- [PyTorch CrossEntropyLoss docs](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) - how the framework implements what you just built
+- [Shannon 1948: A Mathematical Theory of Communication](https://people.math.harvard.edu/~ctm/home/text/others/shannon/entropy/entropy.pdf) - 原始论文，至今仍可读
+- [Visual Information Theory (Chris Olah)](https://colah.github.io/posts/2015-09-Visual-Information/) - 关于熵和KL散度的最佳视觉化解释
+- [PyTorch CrossEntropyLoss docs](https://pytorch.org/docs/stable/generated/torch.nn.CrossEntropyLoss.html) - 框架如何实现你刚刚构建的内容

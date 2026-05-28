@@ -1,130 +1,130 @@
-# Memory Blocks and Sleep-Time Compute (Letta)
+# Letta：记忆块与睡眠期计算
 
-> MemGPT became Letta in 2024. The 2026 evolution adds two ideas: discrete functional memory blocks the model can edit directly, and a sleep-time agent that consolidates memory asynchronously while the primary agent is idle. This is how you scale memory beyond one conversation.
+> MemGPT 在 2024 年演进成了 Letta。到 2026 年，它又增加了两个想法：模型可以直接编辑的离散功能性记忆块，以及一个在主智能体空闲时异步整合记忆的睡眠期智能体。这就是把记忆扩展到单次对话之外的方法。
 
-**Type:** Build
-**Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 07 (MemGPT)
-**Time:** ~75 minutes
+**类型：** 构建
+**语言：** Python（标准库）
+**先修要求：** 第 14 阶段 · 07（MemGPT）
+**时间：** 约 75 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Name the three memory tiers Letta uses (core, recall, archival) and the role of each.
-- Explain the memory-block pattern: Human block, Persona block, and user-defined blocks as first-class typed objects.
-- Describe what sleep-time compute is, why it sits off the critical path, and why it can run a stronger model than the primary agent.
-- Implement a scripted two-agent loop where a primary agent serves responses and a sleep-time agent consolidates blocks between turns.
+- 说出 Letta 使用的三层记忆——核心（core）、召回（recall）、归档（archival）——以及各自的作用。
+- 解释记忆块模式：用户块（Human block）、人设块（Persona block），以及用户自定义块作为一等类型对象的意义。
+- 描述什么是睡眠期计算（sleep-time compute），它为什么位于关键路径之外，以及为什么它可以使用比主智能体更强的模型。
+- 实现一个脚本化的双智能体循环：主智能体负责响应，睡眠期智能体在轮次之间整合记忆块。
 
-## The Problem
+## 问题
 
-MemGPT (Lesson 07) solved the virtual-memory control flow. Three production problems emerged:
+MemGPT（第 07 课）解决了虚拟内存式控制流。但生产环境中又出现了三个问题：
 
-1. **Latency.** Every memory operation sits on the critical path. If the agent has to prune, summarize, or reconcile while the user waits, tail latency blows up.
-2. **Memory rot.** Writes accumulate. Contradicted facts stay. Retrieval drowns in stale content.
-3. **Structure loss.** A flat archival store cannot express "the Human block is always in the prompt; the Persona block is always in the prompt; the Task block swaps per session."
+1. **延迟。** 每次记忆操作都位于关键路径上。如果用户还在等待时，智能体必须完成裁剪、总结或对账，尾延迟（tail latency）就会暴涨。
+2. **记忆腐化。** 写入不断累积。互相矛盾的事实会保留下来。检索会被陈旧内容淹没。
+3. **结构丢失。** 扁平的归档存储无法表达“用户块永远在提示中；人设块永远在提示中；任务块按会话切换”这样的结构。
 
-Letta (letta.com) is the 2026 rewrite. Memory blocks make structure explicit; sleep-time compute moves consolidation off the critical path.
+Letta（letta.com）是 2026 年的重写版本。记忆块让结构显式化；睡眠期计算则把整合工作移出关键路径。
 
-## The Concept
+## 概念
 
-### Three tiers
+### 三层结构
 
-| Tier | Scope | Where it lives | Written by |
+| 层级 | 范围 | 存放位置 | 写入方 |
 |------|-------|----------------|------------|
-| Core | Always visible | Inside the main prompt | Agent tool call + sleep-time rewrites |
-| Recall | Conversation history | Retrievable | Automatic turn logging |
-| Archival | Arbitrary facts | Vector + KV + graph | Agent tool call + sleep-time ingest |
+| 核心（Core） | 始终可见 | 主提示内部 | 智能体工具调用 + 睡眠期重写 |
+| 召回（Recall） | 对话历史 | 可检索 | 自动记录轮次日志 |
+| 归档（Archival） | 任意事实 | 向量 + KV + 图 | 智能体工具调用 + 睡眠期摄取 |
 
-Core is the MemGPT core. Recall is the conversation buffer with its evicted tail. Archival is the external store. The split cleans up MemGPT's two-tier overloading.
+核心层是 MemGPT 的核心。召回层是对话缓冲区及其被逐出的尾部。归档层是外部存储。这种拆分清理了 MemGPT 先前两层结构中的职责重叠。
 
-### Memory blocks
+### 记忆块
 
-A block is a typed, persistent, editable section of the core tier. The original MemGPT paper defined two:
+一个块（block）是核心层中一种带类型、可持久化、可编辑的片段。最初的 MemGPT 论文定义了两个：
 
-- **Human block** — facts about the user (name, role, preferences, goals).
-- **Persona block** — the agent's self-concept (identity, tone, constraints).
+- **用户块（Human block）** —— 关于用户的事实（姓名、角色、偏好、目标）。
+- **人设块（Persona block）** —— 智能体的自我概念（身份、语气、约束）。
 
-Letta generalizes to arbitrary user-defined blocks: a `Task` block for the current goal, a `Project` block for codebase facts, a `Safety` block for hard constraints. Each block has an `id`, `label`, `value`, `limit` (character cap), `description` (so the model knows when to edit it).
+Letta 将其泛化为任意用户自定义块：例如表示当前目标的 `Task` 块、表示代码库事实的 `Project` 块、表示硬性约束的 `Safety` 块。每个块都有 `id`、`label`、`value`、`limit`（字符上限）、`description`（让模型知道什么时候该编辑它）。
 
-Blocks are editable via the tool surface:
+这些块可通过工具接口编辑：
 
 - `block_append(label, text)`
 - `block_replace(label, old, new)`
 - `block_read(label)`
-- `block_summarize(label)` — condense a block that is near its limit.
+- `block_summarize(label)` —— 将接近上限的块压缩总结。
 
-### Sleep-time compute
+### 睡眠期计算
 
-The 2025 Letta addition: run a second agent in background, off the critical path. Sleep-time agents process conversation transcripts and codebase context, write `learned_context` into shared blocks, and consolidate or invalidate archival records.
+Letta 在 2025 年新增的做法是：在关键路径之外，后台运行第二个智能体。睡眠期智能体会处理对话转录与代码库上下文，把 `learned_context` 写入共享块，并整合或作废归档记录。
 
-Properties that fall out:
+由此自然得到几个特性：
 
-- **No latency cost.** Primary responses do not wait for memory ops.
-- **Stronger model allowed.** The sleep-time agent can be a more expensive, slower model because it is not latency-constrained.
-- **Natural consolidation window.** Dedup, summarize, invalidate contradicted facts when the user is not waiting.
+- **没有延迟成本。** 主智能体的响应不必等待记忆操作完成。
+- **可以使用更强的模型。** 睡眠期智能体可以更慢、更昂贵，因为它不受延迟限制。
+- **天然的整合窗口。** 当用户不在等待时，可以去重、总结、清除相互矛盾的事实。
 
-The shape matches how humans work: you do the task, you sleep on it, the long-term memory settles overnight.
+这种形态很像人的工作方式：先完成任务，再“睡一觉”，长期记忆会在一夜之间沉淀下来。
 
-### Letta V1 and native reasoning
+### Letta V1 与原生推理
 
-Letta V1 (`letta_v1_agent`, 2026) deprecates `send_message`/heartbeat and inline `Thought:` tokens in favor of native reasoning. The Responses API (OpenAI) and the Messages API with extended thinking (Anthropic) emit reasoning on a separate channel, passed through turns (encrypted across providers in production). The control loop is still ReAct. The thought trace is structural, not prompt-shaped.
+Letta V1（`letta_v1_agent`，2026）弃用了 `send_message`/heartbeat 和内联的 `Thought:` 标记，转而采用原生推理（native reasoning）。Responses API（OpenAI）和支持扩展思考（extended thinking）的 Messages API（Anthropic）会在独立通道中输出推理内容，并在多轮之间传递（在生产中通常会跨提供商加密）。控制循环仍然是 ReAct。思维轨迹是结构化的，而不是提示词形状的一部分。
 
-### Where this pattern goes wrong
+### 这种模式会在哪里出问题
 
-- **Block bloat.** Infinite `block_append` hits the limit fast. Wire a block summarizer before the write that pushes over the cap.
-- **Silent drift.** Sleep-time agent rewrites a block and the primary agent never notices. Version blocks and surface diffs in the trace.
-- **Poisoned consolidation.** Sleep-time agent processes attacker-reachable content into core. Lesson 27 applies to the sleep-time surface too.
+- **块膨胀。** 无限追加 `block_append` 很快就会触顶。应在即将超出上限的写入前接入块摘要器（block summarizer）。
+- **静默漂移。** 睡眠期智能体重写了某个块，但主智能体完全没意识到。应给块做版本管理，并在轨迹中展示差异（diff）。
+- **被污染的整合。** 睡眠期智能体把攻击者可触达的内容写进核心层。第 27 课的规则同样适用于睡眠期表面。
 
-## Build It
+## 动手构建
 
-`code/main.py` implements:
+`code/main.py` 实现了：
 
-- `Block` — id, label, value, limit, description.
-- `BlockStore` — CRUD + `near_limit(label)` helper.
-- Two scripted agents — `PrimaryAgent` serves a turn, `SleepTimeAgent` consolidates between turns.
-- A trace that shows a three-turn conversation with block writes, plus a sleep-time pass that summarizes a block and invalidates a stale fact.
+- `Block` —— id、label、value、limit、description。
+- `BlockStore` —— CRUD + `near_limit(label)` 辅助函数。
+- 两个脚本化智能体 —— `PrimaryAgent` 负责处理轮次，`SleepTimeAgent` 负责在轮次之间整合。
+- 一段轨迹，展示三轮对话中的块写入，以及一次睡眠期处理：它会总结一个块，并使一个过时事实失效。
 
-Run it:
+运行：
 
 ```
 python3 code/main.py
 ```
 
-The transcript shows the split: primary turns are fast and produce raw writes; the sleep pass compacts and cleans up.
+输出的对话记录会展示这种拆分：主轮次快速响应并产生原始写入；睡眠期处理负责压缩与清理。
 
-## Use It
+## 使用它
 
-- **Letta** (letta.com) for the reference implementation. Self-host or managed cloud.
-- **Claude Agent SDK skills** as block-shaped knowledge — a skill is a named, versioned, retrievable block of instructions the agent loads on demand.
-- **Custom builds** for teams that want control over the storage backend. Use the Letta API contract so you can migrate later.
+- **Letta**（letta.com）—— 参考实现。可自托管，也可使用托管云。
+- **Claude Agent SDK skills** 作为块状知识——一个 skill（技能）就是一个具名、带版本、可检索的指令块，智能体按需加载。
+- **自定义构建** —— 适合希望掌控存储后端的团队。使用 Letta 的 API 契约，这样以后就能平滑迁移。
 
-## Ship It
+## 交付上线
 
-`outputs/skill-memory-blocks.md` generates a Letta-shaped block system with sleep-time hooks for any runtime, including safety rules and citation wiring.
+`outputs/skill-memory-blocks.md` 会为任意运行时生成一个 Letta 风格的块系统，并包含睡眠期钩子（hooks）、安全规则和引用链路。
 
-## Exercises
+## 练习
 
-1. Add a `block_summarize` tool that replaces the block value with a model-generated summary when `near_limit` returns true. Which trigger threshold minimizes both summarization calls and block overflow?
-2. Implement sleep-time dedup over archival: two records whose text has >90% token overlap collapse to one. Do it only in the sleep pass, never on the critical path.
-3. Version blocks. On every write record the old value and a diff. Expose `block_history(label)` so operators can debug "why did the agent forget X."
-4. Treat sleep-time agents as untrusted writers. When they touch the Persona or Safety block, require a second-agent review before committing.
-5. Port the example to use the Letta API (`letta_v1_agent`). What changes in the block schema, and how does native reasoning alter the trace shape?
+1. 添加一个 `block_summarize` 工具：当 `near_limit` 返回 true 时，用模型生成的摘要替换块值。哪个触发阈值能同时最小化摘要调用次数与块溢出？
+2. 在归档层实现睡眠期去重：若两条记录的文本令牌重叠度超过 90%，就合并为一条。只在睡眠期执行，绝不要放在关键路径上。
+3. 给块做版本管理。每次写入都记录旧值与差异。暴露 `block_history(label)`，让运维能排查“为什么智能体忘了 X”。
+4. 把睡眠期智能体当作不可信写入者。当它们修改 Persona 或 Safety 块时，提交前必须经过第二个智能体复核。
+5. 把示例迁移到 Letta API（`letta_v1_agent`）。块 schema 会发生什么变化？原生推理又会如何改变轨迹形态？
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们常说 | 实际含义 |
 |------|----------------|------------------------|
-| Memory block | "Editable prompt section" | Typed, persistent, LLM-editable segment of core memory |
-| Human block | "User memory" | Facts about the user, pinned in core |
-| Persona block | "Agent identity" | Self-concept, tone, constraints, pinned in core |
-| Sleep-time compute | "Async memory work" | Second agent doing consolidation off the critical path |
-| Core / Recall / Archival | "Tiers" | Three-layer memory split: always-visible / conversation / external |
-| Block limit | "Cap" | Character limit per block; forces summarization |
-| Native reasoning | "Thinking channel" | Provider-level reasoning output, not prompt-level `Thought:` |
-| Learned context | "Sleep output" | Facts the sleep-time agent writes into shared blocks |
+| 记忆块 | “可编辑的提示片段” | 核心记忆（core memory）中带类型、可持久化、可由 LLM 编辑的片段 |
+| 用户块 | “用户记忆” | 关于用户的事实，固定在核心层中 |
+| 人设块 | “智能体身份” | 自我概念、语气和约束，固定在核心层中 |
+| 睡眠期计算 | “异步记忆工作” | 第二个智能体在关键路径之外做整合 |
+| 核心 / 召回 / 归档 | “层级” | 三层记忆拆分：始终可见 / 对话 / 外部 |
+| 块上限 | “容量上限” | 每个块的字符上限；会迫使系统做摘要 |
+| 原生推理 | “思考通道” | 提供商级推理输出，而不是提示级 Thought |
+| 学习到的上下文 | “睡眠输出” | 睡眠期智能体写入共享块的事实 |
 
-## Further Reading
+## 延伸阅读
 
-- [Letta, Memory Blocks blog](https://www.letta.com/blog/memory-blocks) — the block pattern
-- [Letta, Sleep-time Compute blog](https://www.letta.com/blog/sleep-time-compute) — async consolidation
-- [Letta, Rearchitecting the Agent Loop](https://www.letta.com/blog/letta-v1-agent) — native reasoning rewrite
-- [Packer et al., MemGPT (arXiv:2310.08560)](https://arxiv.org/abs/2310.08560) — the origin
+- [Letta, Memory Blocks blog](https://www.letta.com/blog/memory-blocks) —— 记忆块模式
+- [Letta, Sleep-time Compute blog](https://www.letta.com/blog/sleep-time-compute) —— 异步整合
+- [Letta, Rearchitecting the Agent Loop](https://www.letta.com/blog/letta-v1-agent) —— 原生推理重构
+- [Packer et al., MemGPT (arXiv:2310.08560)](https://arxiv.org/abs/2310.08560) —— 起点

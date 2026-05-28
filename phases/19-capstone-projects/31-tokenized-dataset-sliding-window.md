@@ -1,98 +1,98 @@
-# Tokenized Dataset with Sliding Window
+# 使用滑动窗口的分词数据集
 
-> A pretraining run is a function from token ids to gradients. This lesson builds the conveyor that feeds the ids in.
+> 一次预训练运行，本质上是从 token id 到梯度的函数。本课将构建把这些 id 持续送进去的传送带。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 04 lessons, Phase 07 transformer lessons, Lesson 30 of this phase
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python
+**先修要求：** 第 04 阶段课程，第 07 阶段 Transformer 课程，本阶段第 30 课
+**时间：** ~90 分钟
 
-## Learning Objectives
-- Convert a raw corpus into a stream of token ids by calling the tokenizer once.
-- Slice the id stream into fixed-length windows with a configurable overlap stride.
-- Build a PyTorch Dataset that returns input and target tensors for next-token prediction.
-- Wrap the dataset in a DataLoader with a deterministic shuffle seeded per epoch.
-- Reason about the trade-off between stride, redundancy, and effective dataset size.
+## 学习目标
+- 通过调用一次分词器，把原始语料库转换为词元（token）id 流。
+- 用可配置重叠步幅（stride）把 id 流切成固定长度的滑动窗口（sliding window）。
+- 构建一个 PyTorch 数据集（Dataset），为下一 token 预测（next-token prediction）返回输入张量和目标张量。
+- 用按 epoch 设定种子的确定性洗牌，把数据集封装进数据加载器（DataLoader）。
+- 理解步幅、冗余和有效数据集大小之间的权衡。
 
-## The frame
+## 背景
 
-A pretraining run reads one batch of token ids at a time and updates the model. The shape of each batch is fixed by the training contract. For a causal language model, the batch holds `(B, T)` input ids and `(B, T)` target ids where the target is the input shifted left by one. The job of the data pipeline is to produce that contract on demand, in a deterministic and reproducible way, from a corpus that may be several gigabytes of raw text.
+一次预训练（pretraining）运行会一次读取一个 token id 批次并更新模型。每个批次的形状由训练契约固定。对于因果语言模型（causal language model），批次中包含 `(B, T)` 的输入 id 和 `(B, T)` 的目标 id，其中目标是将输入整体左移一位得到的。数据管线的任务，是从可能包含数 GB 原始文本的语料中，以确定且可复现的方式，按需生成这一契约。
 
-This lesson builds the pipeline. The tokenizer from the previous lesson turns text into a long flat list of ids. A sliding window slices that list into training examples. A custom Dataset exposes the examples as tensors. A DataLoader batches them and shuffles them with a known seed.
+本课会搭建这条管线。上一课的分词器会把文本转换为一长串扁平 id 列表。滑动窗口会把这串列表切成训练样本。一个自定义 Dataset 会把这些样本暴露为张量。DataLoader 则负责把它们分批，并使用已知种子进行打乱。
 
-## The shape contract
+## 形状契约
 
-A causal LM consumes ids of shape `(B, T)` where `B` is the batch size and `T` is the context length. The target at position `t` is the input at position `t+1`. That means every training example covers `T+1` raw ids. The window stride controls how much overlap exists between consecutive examples.
+因果语言模型（LM）接收形状为 `(B, T)` 的 id，其中 `B` 是批大小，`T` 是上下文长度（context length）。位置 `t` 处的目标，是位置 `t+1` 处的输入。这意味着每个训练样本都覆盖 `T+1` 个原始 id。窗口步幅控制相邻样本之间有多少重叠。
 
 ```mermaid
 flowchart LR
-    A[raw corpus text] --> B[tokenizer.encode]
-    B --> C[flat list of ids]
-    C --> D[sliding window slicer]
+    A[原始语料文本] --> B[tokenizer.encode]
+    B --> C[id 扁平列表]
+    C --> D[滑动窗口切片器]
     D --> E[(id_window_0)]
     D --> F[(id_window_1)]
     D --> G[(id_window_n)]
-    E --> H[PyTorch Dataset]
+    E --> H[PyTorch 数据集]
     F --> H
     G --> H
-    H --> I[DataLoader with seeded shuffle]
-    I --> J[batches of B x T+1 ids]
-    J --> K[split into input and target]
+    H --> I[带种子洗牌的 DataLoader]
+    I --> J[B x T+1 id 批次]
+    J --> K[拆分为输入与目标]
 ```
 
-The slicer never overlaps with the boundary of the corpus. If the last window does not have enough ids to fill `T+1` positions, the slicer drops it. Padding the tail with `&lt;|pad|>` is also a valid choice but it complicates the loss mask. For this lesson we drop.
+切片器绝不会越过语料边界。如果最后一个窗口没有足够的 id 来填满 `T+1` 个位置，切片器就会把它丢弃。用 `&lt;|pad|>` 对尾部做填充也是一种可行选择，但那会让损失掩码变复杂。本课直接丢弃。
 
-## Why a sliding window
+## 为什么要用滑动窗口
 
-A pretraining corpus is one long stream of ids. If the model only saw non-overlapping windows, every training example would teach it the same `T` boundaries. Adjusting the stride moves those boundaries around so the model sees more diverse predict-next-token tasks.
+预训练语料是一整条连续的 id 流。如果模型只看到彼此不重叠的窗口，那么每个训练样本都会让它学习到同样的 `T` 个边界。调整步幅会移动这些边界，从而让模型看到更多样的“预测下一个 token”任务。
 
-A stride of `T` produces non-overlapping windows. A stride of `T // 2` produces fifty-percent overlap and doubles the effective dataset. A stride of `1` produces maximum overlap and increases the dataset by a factor of `T`. The cost is more compute per epoch. The benefit is more boundary diversity. Most pretraining runs use a stride equal to the context length because the corpus is already much larger than the model can finish in one epoch, so the boundary diversity argument is weaker.
+步幅为 `T` 时，会产生彼此不重叠的窗口。步幅为 `T // 2` 时，会产生 50% 的重叠，并把有效数据集规模翻倍。步幅为 `1` 时，会产生最大重叠，并把数据集扩大到 `T` 倍。代价是每个 epoch 需要更多计算。收益是边界更加多样。大多数预训练运行会让步幅等于上下文长度，因为语料本身已经远大于模型在一个 epoch 内能处理完的量，所以“边界多样性”的理由就没那么强了。
 
-## The Dataset class
+## 数据集类（Dataset）
 
-A PyTorch Dataset has two required methods. `__len__` returns the number of examples. `__getitem__` returns one example as a pair of tensors. Our Dataset stores the encoded id stream and the stride. Indexing into it computes the start of the window on the fly so the memory cost is one copy of the id stream regardless of how many examples the stride produces.
+一个 PyTorch Dataset 需要实现两个必需方法。`__len__` 返回样本数量，`__getitem__` 返回一个样本对应的一对张量。我们的 Dataset 会保存编码后的 id 流和步幅。对它做索引时，会即时计算窗口起点，因此无论步幅产生多少个样本，内存成本始终只是一份 id 流副本。
 
 ```mermaid
 sequenceDiagram
-    participant Trainer
+    participant Trainer as 训练器
     participant DataLoader
     participant Dataset
-    participant Tokenizer
+    participant Tokenizer as 分词器
     Trainer->>DataLoader: iter(dataloader)
     DataLoader->>Dataset: __len__
     DataLoader->>Dataset: __getitem__(i)
     Dataset->>Dataset: window = ids[start:start+T+1]
     Dataset->>DataLoader: (input_ids, target_ids)
-    DataLoader->>Trainer: batch (B,T) input, (B,T) target
-    Note over Tokenizer,Dataset: tokenizer.encode runs once at build time
+    DataLoader->>Trainer: 批次 (B,T) 输入, (B,T) 目标
+    Note over Tokenizer,Dataset: tokenizer.encode 在构建时只运行一次
 ```
 
-The shift-by-one happens inside `__getitem__`. The Dataset returns `(input, target)` where `input = window[:-1]` and `target = window[1:]`. Both are PyTorch long tensors. The training loop treats them as ground truth.
+左移一位的逻辑发生在 `__getitem__` 内部。Dataset 返回 `(input, target)`，其中 `input = window[:-1]`，`target = window[1:]`。两者都是 PyTorch 的 long tensor。训练循环会把它们视为监督真值。
 
-## Deterministic shuffle
+## 确定性洗牌
 
-A DataLoader with `shuffle=True` reads from a PyTorch random generator. By passing an explicit `torch.Generator` seeded per epoch, we get the same shuffle every time the run is restarted. That property matters when you want to compare two runs that differ only in a single hyperparameter. Without a seed, two runs see the data in different orders and the loss curves diverge for reasons unrelated to the change.
+设置 `shuffle=True` 的 DataLoader 会从 PyTorch 随机生成器中读取随机性。通过传入一个按 epoch 设定种子的显式 `torch.Generator`，我们就能在每次重新启动运行时获得完全相同的洗牌顺序。当你希望比较两个只在单个超参数上不同的运行时，这一点非常重要。没有种子的话，两次运行看到的数据顺序不同，损失曲线也会因为与改动无关的原因而分叉。
 
-The seed contract in this lesson is simple. `epoch_seed = base_seed + epoch_index`. The base seed is passed at construction. The epoch index is incremented by the trainer at the top of each epoch. A re-run with the same base seed always sees the same order in every epoch.
+本课中的种子契约很简单：`epoch_seed = base_seed + epoch_index`。基础种子在构造时传入。训练器会在每个 epoch 开始时递增 epoch 索引。只要基础种子相同，重新运行时每个 epoch 看到的顺序就始终一致。
 
-## Batch sampler
+## 批采样器
 
-The default sampler in PyTorch picks indices uniformly at random with replacement disabled. That is what we want for pretraining. For finetuning on a small dataset the contract is the same. The DataLoader assembles a batch by calling `__getitem__` `B` times and stacking the results. Because every example is the same length by construction, no padding logic is needed.
+PyTorch 的默认采样器会在不放回的前提下，对索引做均匀随机抽样。这正是我们在预训练中想要的行为。对于小数据集上的微调，契约也是一样的。DataLoader 会调用 `__getitem__` 共 `B` 次，再把结果堆叠成一个批次。由于每个样本按构造都具有相同长度，因此不需要任何填充逻辑。
 
-The lesson keeps `num_workers=0` for simplicity. In a production run the workers parallelize the `__getitem__` calls. With our pipeline that is mostly a no-op because the work is just a slice of an in-memory tensor, but the same Dataset API supports workers cleanly.
+为简化起见，本课将 `num_workers=0`。在生产运行中，worker 会并行化 `__getitem__` 调用。对我们的这条管线而言，这几乎没有实际效果，因为工作内容只是在内存张量上做一次切片；不过同一套 Dataset API 依然能够很好地支持 worker。
 
-## Counting examples
+## 统计样本数量
 
-For an id stream of length `N`, a context length `T`, and a stride `S`, the number of examples is `max(0, 1 + (N - (T + 1)) // S)`. The lesson exposes that calculation as a static method on the Dataset so the trainer can compute total steps per epoch without iterating.
+对于长度为 `N` 的 id 流、上下文长度 `T` 和步幅 `S`，样本数量为 `max(0, 1 + (N - (T + 1)) // S)`。本课把这个计算暴露为 Dataset 上的一个静态方法，这样训练器就能在不迭代数据的情况下计算每个 epoch 的总步数。
 
-## What this lesson does not do
+## 本课不做什么
 
-It does not stream from disk. The corpus is encoded fully in memory and held as a single tensor. For a corpus of a few million ids that is well under a hundred megabytes and is the right shape for the lesson. Disk streaming is a separate concern that plugs in by replacing the storage but keeps the Dataset contract.
+本课不会从磁盘流式读取。语料会被完整编码到内存中，并保存为单个张量。对于几百万个 id 规模的语料，这通常还不到一百 MB，非常适合作为本课的形状。磁盘流式处理是另一个独立问题，可以通过替换底层存储接入进来，同时保持 Dataset 契约不变。
 
-It does not handle multiple documents. The corpus is treated as one continuous id stream. The next-document boundary is encoded by inserting `&lt;|endoftext|>` ids when the corpus is built from multiple documents. The model learns to predict around the boundary.
+本课也不会处理多个文档。语料会被视为一条连续的 id 流。当语料由多个文档构建而成时，可以通过插入 `&lt;|endoftext|>` id 来编码“下一个文档边界”。模型会学习如何围绕这个边界做预测。
 
-## How to read the code
+## 如何阅读代码
 
-`main.py` defines two classes and one helper. `SlidingWindowDataset` is the PyTorch Dataset. `make_dataloader` returns a configured DataLoader with a seeded generator. `_encode_corpus_to_ids` is the one-shot tokenizer call. The demo at the bottom builds a small tokenizer in-process, encodes a built-in corpus, constructs the dataset and dataloader, prints one batch, and asserts the shape contract. The tests in `code/tests/test_dataset.py` pin the window count formula, the shift-by-one property, the deterministic shuffle, and the stride trade-off.
+`main.py` 定义了两个类和一个辅助函数。`SlidingWindowDataset` 是 PyTorch Dataset。`make_dataloader` 会返回一个带已设种子生成器的配置好 DataLoader。`_encode_corpus_to_ids` 是一次性的分词器调用。文件底部的 demo 会在进程内构建一个小分词器，对内置语料进行编码，构造数据集和 dataloader，打印一个批次，并断言形状契约成立。`code/tests/test_dataset.py` 中的测试固定了窗口计数公式、左移一位性质、确定性洗牌，以及步幅权衡。
 
-Run the demo. Then change the context length from 16 to 32 and watch how the number of examples per epoch falls. That number is your steps-per-epoch budget.
+运行 demo。然后把上下文长度从 16 改成 32，观察每个 epoch 的样本数如何下降。这个数字就是你的“每个 epoch 步数预算”。

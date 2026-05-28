@@ -1,138 +1,138 @@
-# GPT Model Assembly
+# GPT 模型组装
 
-> Twelve blocks stacked, a token embedding, a learned position embedding, a final LayerNorm, and a tied language model head. That is the entire 124 million parameter GPT model. This lesson assembles those pieces into a working class, counts the parameters to confirm the model matches the reference 124M shape, and generates text with multinomial sampling, temperature, and top-k.
+> 堆叠十二个模块（block）、一个 token 嵌入（token embedding）、一个可学习的位置嵌入（position embedding）、最后一个层归一化（LayerNorm），再加上一个绑定权重的语言模型头（language model head）。这就是完整的 1.24 亿参数 GPT 模型。本课会把这些部件组装成一个可运行的类，统计参数量以确认模型匹配参考版 124M 的形状，并用 multinomial 采样、temperature 和 top-k 来生成文本。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 19 lessons 30 to 34
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python
+**先修要求：** 第 19 阶段第 30 到 34 课
+**时间：** 约 90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Assemble the transformer block from lesson 34 into a full GPT model: token embedding, position embedding, N blocks, final LayerNorm, language model head.
-- Reproduce the 124 million parameter configuration: vocab 50257, context 1024, embedding 768, twelve heads, twelve layers.
-- Tie the language model head weights to the token embedding and explain why that saves ~38 million parameters at this scale.
-- Generate text from a prompt with multinomial sampling, temperature scaling, and top-k truncation, holding context length with a sliding window.
-- Measure parameter count and forward pass cost against the 124M target.
+- 将第 34 课中的 Transformer 块（transformer block）组装成完整的 GPT 模型：token embedding、position embedding、N 个模块、最终 LayerNorm、语言模型头。
+- 复现 1.24 亿参数配置：词表 50257、上下文 1024、嵌入维度 768、十二个头、十二层。
+- 将语言模型头权重与 token embedding 绑定（weight tying），并解释为什么在这个规模下能节省约 3800 万参数。
+- 用 multinomial 采样、temperature 缩放和 top-k 截断从提示词生成文本，并通过滑动窗口维持上下文长度。
+- 对照 124M 目标，测量参数量和前向传播成本。
 
-## The Problem
+## 问题
 
-A transformer block does nothing on its own. You need to turn token ids into vectors, mix in positional information, run them through the stack, and project back to vocabulary logits. Forget any one of those four steps and the model either fails to forward, drifts in position information, or cannot speak.
+单独一个 Transformer 模块什么都做不了。你需要把 token id 变成向量，混入位置信息，让它们穿过整个堆栈，再投影回词表 logits。四步里少了任何一步，模型不是无法 forward，就是位置信息漂移，或者根本说不出话。
 
-The shape of the model also matters. The reference GPT-2 small is 124 million parameters at exactly the configuration above. The numbers are not magic. Vocab 50257 times embedding 768 is the token table. Position 1024 times 768 is the position table. Twelve blocks at roughly 7 million parameters each is 84 million. The final head reuses the token table by weight tying. Sum the pieces and you land on 124 million. Building a model whose parameter count does not match the reference is a sign you wired something wrong.
+模型的形状同样重要。参考版 GPT-2 small 在上述配置下恰好是 1.24 亿参数。这些数字并不神秘。50257 的词表乘以 768 的嵌入维度，就是 token 表。1024 的位置数乘以 768，就是位置表。十二个模块每个大约 700 万参数，总计 8400 万。最终头通过权重绑定复用 token 表。把这些部分加总，你就得到 1.24 亿。如果你构建出的模型参数量和参考值对不上，那通常说明接线有误。
 
-## The Concept
+## 概念
 
 ```mermaid
 flowchart TB
-  T[Token ids<br/>shape B, T] --> E[Token embedding<br/>50257, 768]
-  T --> P[Position lookup<br/>0 to T-1]
-  P --> PE[Position embedding<br/>1024, 768]
-  E --> A[Add]
+  T[Token id<br/>形状 B, T] --> E[Token 嵌入<br/>50257, 768]
+  T --> P[位置查找<br/>0 到 T-1]
+  P --> PE[位置嵌入<br/>1024, 768]
+  E --> A[相加]
   PE --> A
-  A --> D[Embedding dropout]
-  D --> B1[Block 1]
-  B1 --> B2[Block 2]
+  A --> D[嵌入 dropout]
+  D --> B1[模块 1]
+  B1 --> B2[模块 2]
   B2 --> Bk[...]
-  Bk --> B12[Block 12]
-  B12 --> L[Final LayerNorm]
-  L --> H[LM head<br/>tied to token embedding]
-  H --> O[Logits<br/>shape B, T, 50257]
+  Bk --> B12[模块 12]
+  B12 --> L[最终 LayerNorm]
+  L --> H[LM 头<br/>与 token embedding 绑定]
+  H --> O[Logits<br/>形状 B, T, 50257]
 ```
 
-Token ids become token vectors. Position ids become position vectors. The two are added and sent through the stack. The final LayerNorm is the one piece outside the blocks that survives every modern variant. The LM head reuses the token embedding matrix, which is what weight tying means.
+Token id 会变成 token 向量。位置 id 会变成位置向量。两者相加后送入堆栈。最终 LayerNorm 是模块之外、在所有现代变体中都保留下来的那个部件。LM 头会复用 token embedding 矩阵，这就是所谓的权重绑定。
 
-### Weight tying
+### 权重绑定
 
-The token embedding has shape `(vocab, d_model)`. The language model head needs to project from `d_model` back to `vocab`. Those are transposes of each other. Tying the two means literally the same parameter tensor, used twice. At vocab 50257 and d_model 768, the matrix is 38 million parameters. Untied, you pay for it twice. Tied, you pay for it once and you also get a slightly cleaner gradient signal because the embedding and head update together.
+Token embedding 的形状是 `(vocab, d_model)`。语言模型头需要把 `d_model` 投影回 `vocab`。二者彼此正好是转置关系。把它们绑定，字面意思就是同一个参数张量被使用两次。当词表是 50257、`d_model` 是 768 时，这个矩阵就有 3800 万参数。不绑定，你要为它付两次成本；绑定，你只付一次，而且还能获得更干净一点的梯度信号，因为 embedding 和 head 会一起更新。
 
-### Position embedding is learned, not sinusoidal
+### 位置嵌入是可学习的，不是正弦的
 
-GPT-2 ships a learned position embedding. The position table is one parameter tensor of shape `(1024, 768)`. The model looks up position 0 through T-1 at every forward and adds the lookup to the token embedding. This is the simplest of the position schemes (RoPE, ALiBi, T5 relative bias are the alternatives) and it is what the 124M reference uses.
+GPT-2 使用的是可学习位置嵌入。位置表是一个形状为 `(1024, 768)` 的参数张量。模型在每次 forward 时查找位置 0 到 T-1，并把查找结果加到 token embedding 上。这是所有位置方案中最简单的一种（RoPE、ALiBi、T5 relative bias 都是替代方案），也是 124M 参考模型所使用的方案。
 
-### Generation: temperature, top-k, multinomial
+### 生成：temperature、top-k、multinomial
 
-Generation is autoregressive. At every step, the model returns logits over the full vocabulary at every position. You take the last position only, divide by temperature, optionally mask all but the top k logits to negative infinity, softmax to get probabilities, and sample one token from the resulting distribution.
+生成是自回归（autoregressive）的。每一步，模型都会在每个位置上返回覆盖整个词表的 logits。你只取最后一个位置，把它除以 temperature，可选地把除了 top k 之外的 logits 全部掩蔽为负无穷，通过 softmax 得到概率，再从这个分布中采样一个 token。
 
 ```mermaid
 flowchart LR
-  P[Prompt tokens] --> M[Model forward]
-  M --> Last[Take last position logits]
-  Last --> T[Divide by temperature]
-  T --> K[Mask to top k]
+  P[提示 token] --> M[模型前向传播]
+  M --> Last[取最后位置的 logits]
+  Last --> T[除以 temperature]
+  T --> K[掩蔽为 top k]
   K --> S[Softmax]
-  S --> MN[Multinomial sample]
-  MN --> A[Append to context]
-  A --> Slide[Slide context if > ctx_len]
+  S --> MN[Multinomial 采样]
+  MN --> A[追加到上下文]
+  A --> Slide[若超过 ctx_len 则滑动上下文]
   Slide --> M
 ```
 
-Three knobs, three different behaviors. Temperature near zero collapses to greedy. Temperature one matches the model's natural distribution. Top-k one is greedy. Top-k forty filters the long tail. The combinations matter; the next lesson on training uses generation as a qualitative eval signal.
+三个旋钮，对应三种不同的行为。Temperature 接近零时会塌缩成 greedy。Temperature 为 1 时匹配模型的自然分布。Top-k 为 1 时就是 greedy。Top-k 为 40 时会滤掉长尾。不同组合很重要；下一课讲训练时，会把生成作为定性评估信号。
 
-## Build It
+## 动手构建
 
-`code/main.py` implements:
+`code/main.py` 实现了：
 
-- `class GPTConfig` dataclass with the 124M defaults: `vocab_size=50257`, `context_length=1024`, `d_model=768`, `num_heads=12`, `num_layers=12`, `mlp_expansion=4`, `dropout=0.1`, `use_bias=True`, `weight_tying=True`.
-- `class GPTModel` with token embedding, position embedding, embedding dropout, twelve `TransformerBlock`s, final LayerNorm, and an `lm_head` that ties to the token embedding when the flag is set.
-- A `count_parameters` helper that returns the unique parameter count (so weight tying is honored in the count).
-- A `generate` function that does temperature, top-k, multinomial, and sliding window context.
-- A demo that builds the model, prints the parameter count next to the reference 124M, and generates a short sequence from a fixed prompt to show the pipeline ends to end.
+- `class GPTConfig` 数据类（dataclass），带有 124M 默认配置：`vocab_size=50257`、`context_length=1024`、`d_model=768`、`num_heads=12`、`num_layers=12`、`mlp_expansion=4`、`dropout=0.1`、`use_bias=True`、`weight_tying=True`。
+- `class GPTModel`：包含 token embedding、position embedding、embedding dropout、十二个 `TransformerBlock`、最终 LayerNorm，以及在标志开启时与 token embedding 绑定的 `lm_head`。
+- 一个 `count_parameters` 辅助函数，返回去重后的参数量（因此会正确考虑 weight tying）。
+- 一个 `generate` 函数，支持 temperature、top-k、multinomial 和滑动窗口上下文。
+- 一个演示：构建模型，打印其参数量并与参考 124M 对照，再从固定提示词生成一段短序列，以展示整个流程首尾打通。
 
-Run it:
+运行它：
 
 ```bash
 python3 code/main.py
 ```
 
-Output: parameter count alongside the 124M reference, generated token ids from a random prompt, and a confirmation that the LM head and token embedding share storage when tying is on.
+输出：参数量与 124M 参考值并排显示、从随机提示词生成的 token id，以及在启用绑定时 LM 头和 token embedding 共享存储的确认信息。
 
-To keep the demo fast, the script also runs a tiny config (`d_model=64`, `num_layers=2`) end to end and prints the generated token sequence inline. The 124M config is built but only its parameter count and one forward pass are exercised.
+为了让演示跑得更快，脚本还会把一个小配置（`d_model=64`、`num_layers=2`）完整跑通，并直接打印生成出的 token 序列。124M 配置会被构建出来，但只会实际执行参数统计和一次 forward。
 
-## Stack
+## 技术栈
 
-- `torch` for the tensor math, autograd, and module plumbing.
-- `code/main.py` reimplements the same block pattern from lesson 34 locally.
+- `torch`：用于张量计算、自动求导和模块框架。
+- `code/main.py` 在本地重新实现了与第 34 课相同的模块模式。
 
-## Production patterns in the wild
+## 生产环境中的常见模式
 
-Three patterns make the difference between a model that runs and a model that ships.
+三个模式决定了一个模型只是能跑，还是能真正上线。
 
-**Initialize the residual projections small.** The output projection of attention and the second linear of the MLP both feed directly into a residual add. Initializing those with the same standard deviation as every other linear gives a residual stream that grows with depth and pushes the final LayerNorm into a hot regime. Scale the std by `1 / sqrt(2 * num_layers)` for those two projections; the residual stream stays in a sane range through twelve layers.
+**把残差投影初始化得更小。** 注意力的输出投影和 MLP 的第二个线性层都会直接送入一次残差相加。如果它们和其他所有线性层使用相同的标准差初始化，残差流就会随着深度增长，并把最终 LayerNorm 推入高压区。把这两个投影的标准差按 `1 / sqrt(2 * num_layers)` 缩放；这样残差流在十二层中都能保持在合理范围内。
 
-**Cache the position id tensor, do not recompute.** `torch.arange(T)` allocates fresh memory at every forward. Allocate once in `__init__` for the maximum context, slice the first T entries per call, and skip the allocator round trip.
+**缓存位置 id 张量，不要重复计算。** `torch.arange(T)` 每次 forward 都会分配新的内存。在 `__init__` 中针对最大上下文一次性分配好它，每次调用时只切出前 T 个条目，就能省掉一次分配器往返。
 
-**Tie weights at parameter level, not just by copying.** Setting `lm_head.weight = token_embedding.weight` shares the tensor; copying does not. The optimizer needs to update one parameter and the autograd graph needs one accumulation. If you copy, the head drifts away from the embedding and weight tying buys you nothing.
+**在参数层面做权重绑定，而不是只复制数值。** 设置 `lm_head.weight = token_embedding.weight` 会共享同一个张量；复制不会。优化器需要更新一个参数，autograd 图也只需要一次累加。如果你只是复制，head 会逐渐偏离 embedding，权重绑定也就失去意义。
 
-## Use It
+## 使用方式
 
-- The model class in this lesson is the same shape as the one the next lesson trains.
-- Replacing the learned position embedding with RoPE gets you the LLaMA family without touching the block or the head.
-- Replacing the GELU with SiLU and the LayerNorm with RMSNorm gets you the rest of the LLaMA family changes.
-- The generation function works with any logits source, not only this model. You can pull logits from a pretrained GPT-2 file in lesson 37 and reuse the same generation loop.
+- 本课中的模型类和下一课训练时使用的模型形状完全一致。
+- 把可学习位置嵌入替换成 RoPE，就能得到 LLaMA 家族，而无需改动模块或 head。
+- 把 GELU 替换成 SiLU，再把 LayerNorm 替换成 RMSNorm，就得到了 LLaMA 家族其余的变化。
+- 生成函数适用于任何 logits 来源，不只适用于这个模型。你可以在第 37 课从预训练 GPT-2 文件中取出 logits，并复用同一个生成循环。
 
-## Exercises
+## 练习
 
-1. Untie the LM head from the token embedding and recount parameters. Verify the delta is 50257 times 768 = 38 million.
-2. Replace the learned position embedding with a sinusoidal table computed at construction time. Confirm the model still forwards and the parameter count drops by 786,432.
-3. Add a `greedy=True` flag to generation that skips sampling and picks argmax. Confirm the sequence is deterministic across runs.
-4. Add a `repetition_penalty` knob that divides the logit of any token in the prompt or generated history by a constant before softmax. Show on a fixed prompt that values above one reduce repeat counts in the output.
-5. Add `top_p` (nucleus) sampling next to `top_k`. Two-line check that the sum of probabilities of the kept tokens exceeds `top_p`.
+1. 解除 LM 头与 token embedding 的绑定，然后重新统计参数。验证差值是 50257 乘以 768，也就是 3800 万。
+2. 用一个在构造时计算好的正弦表替换可学习位置嵌入。确认模型依然可以 forward，且参数量减少 786,432。
+3. 给生成过程添加 `greedy=True` 标志，使其跳过采样并直接选择 argmax。确认序列在多次运行间是确定的。
+4. 添加一个 `repetition_penalty` 旋钮：在 softmax 之前，将提示词或生成历史中任意 token 的 logit 除以一个常数。用固定提示词展示：当该值大于 1 时，输出中的重复次数会减少。
+5. 在 `top_k` 旁边加入 `top_p`（nucleus）采样。用两行检查代码确认保留下来的 token 概率和超过 `top_p`。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|-----------------|------------------------|
-| Weight tying | "Tied embeddings" | The LM head and the token embedding share the same parameter tensor; saves vocab times d_model parameters and matches the GPT-2 reference |
-| Position embedding | "Learned positions" | A separate table of shape (context length, d_model) added to token vectors; learned end to end |
-| Sliding window context | "Context cap" | When the prompt plus generated tokens exceed the context length, drop the oldest tokens so the active window fits |
-| Top-k sampling | "K truncation" | Keep the K logits with the highest values, mask the rest to negative infinity, softmax over the remainder |
-| Temperature | "Sampling temperature" | Divide logits by T before softmax; T less than 1 sharpens, T equal to 1 keeps the natural distribution, T greater than 1 flattens |
+| 术语 | 常见说法 | 实际含义 |
+|------|----------|----------|
+| 权重绑定 | “绑定嵌入” | LM 头和 token embedding 共享同一个参数张量；可节省 vocab × d_model 个参数，并匹配 GPT-2 参考实现 |
+| 位置嵌入 | “学习到的位置” | 一个形状为 (context length, d_model) 的独立表，被加到 token 向量上；端到端学习得到 |
+| 滑动窗口上下文 | “上下文上限” | 当提示词加上已生成 token 超过上下文长度时，丢弃最旧的 token，让当前活动窗口仍能装下 |
+| Top-k 采样 | “K 截断” | 保留数值最高的 K 个 logits，把其余部分掩蔽为负无穷，再对剩余项做 softmax |
+| Temperature | “采样温度” | 在 softmax 前把 logits 除以 T；T 小于 1 会变尖锐，T 等于 1 保持自然分布，T 大于 1 会变平坦 |
 
-## Further Reading
+## 延伸阅读
 
-- Phase 19 lesson 34 for the block this model stacks.
-- Phase 19 lesson 36 for the training loop that drives this model with cross entropy loss.
-- Phase 19 lesson 37 for loading pretrained GPT-2 weights into this exact architecture.
-- Phase 7 lesson 07 (GPT causal language modeling) for the math of next token prediction.
-- Phase 10 lesson 04 (pre training mini GPT) for the original training procedure on the same architecture.
+- 第 19 阶段第 34 课，了解这个模型所堆叠的模块。
+- 第 19 阶段第 36 课，了解如何用交叉熵损失驱动这个模型的训练循环。
+- 第 19 阶段第 37 课，了解如何把预训练 GPT-2 权重加载到这个完全一致的架构中。
+- 第 7 阶段第 07 课（GPT 因果语言建模），了解 next token prediction 的数学原理。
+- 第 10 阶段第 04 课（预训练 mini GPT），了解同一架构上的原始训练流程。

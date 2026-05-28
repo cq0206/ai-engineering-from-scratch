@@ -1,110 +1,110 @@
-# Capstone Lesson 29: End-to-End Coding Agent on the Harness
+# 毕业项目课程 29：运行在运行框架上的端到端编码智能体
 
-> Track A's payoff. This lesson stitches the gate chain, the sandbox, the eval harness, and the OTel spans into one working coding agent that fixes a real (small, fixture-scale) bug in a multi-file Python project. The agent is a deterministic policy, not an LLM; the substitution makes the lesson reproducible and shows that the harness was the interesting part all along. The contract is identical: a real model plugs in at the policy seam.
+> 这是 Track A 的收官回报。本课把门控链 (gate chain)、沙箱 (sandbox)、评测运行框架 (eval harness) 和 OTel span 全部缝进一个可工作的编码智能体：它能在一个真实但很小、以夹具 (fixture) 为尺度的多文件 Python 项目里修复 bug。这个智能体使用的是确定性策略，而不是 LLM；这种替换让课程可复现，也证明真正有趣的一直都是运行框架本身。契约完全不变：只要在策略接缝处换成真实模型即可。
 
-**Type:** Build
-**Languages:** Python (stdlib)
-**Prerequisites:** Phase 19 · 25 (verification gates), Phase 19 · 26 (sandbox), Phase 19 · 27 (eval harness), Phase 19 · 28 (observability), Phase 14 · 38 (verification gates), Phase 14 · 41 (workbench for real repos), Phase 14 · 42 (agent workbench capstone)
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python（stdlib）
+**前置条件：** 第 19 阶段 · 25（验证门），第 19 阶段 · 26（沙箱），第 19 阶段 · 27（eval harness），第 19 阶段 · 28（可观测性），第 14 阶段 · 38（验证门），第 14 阶段 · 41（真实仓库工作台），第 14 阶段 · 42（智能体工作台毕业项目）
+**时间：** ~90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Compose the gate chain, sandbox, eval harness, and span builder into a single agent loop.
-- Implement a deterministic policy that uses read_file, run_tests, and write_file to fix a fixture bug.
-- Enforce a global step budget plus an observation token budget across an end-to-end run.
-- Emit complete OTel GenAI traces and Prometheus metrics for the full run.
-- Verify the agent solves the fixture in fewer than 12 steps with zero gate trips on legal tools.
+- 把 gate chain、sandbox、eval harness 和 span builder 组合成一个单一智能体循环。
+- 实现一个确定性策略，借助 read_file、run_tests 和 write_file 修复一个 fixture bug。
+- 在端到端运行中同时强制执行全局步骤预算与 observation token 预算。
+- 为整次运行发出完整的 OTel GenAI trace 与 Prometheus metric。
+- 验证智能体能在少于 12 步内解出 fixture，并且对合法工具零 gate trip。
 
-## The Problem
+## 问题
 
-Most agent demos work in isolation: a sandbox by itself, an eval harness by itself, a span emitter by itself. They look fine. Compose them and the seams show.
+大多数智能体演示都只在隔离环境里看起来没问题：单独的 sandbox、单独的 eval harness、单独的 span emitter。它们各自都挺像样。一旦真正组合起来，接缝就会暴露。
 
-The gate chain says ALLOW but the sandbox refuses for a reason the chain did not anticipate. The eval harness records a pass but the OTel spans say the gate refused a tool the agent claims it used. The Prometheus counter is incremented twice when it should be incremented once. The observation budget is exceeded but the agent kept going because the budget was tracked in the chain and the sandbox didn't know.
+gate chain 说 ALLOW，但 sandbox 却因为链根本没预料到的原因拒绝。eval harness 记录了一次通过，可 OTel span 却显示 gate 拒绝了某个智能体声称自己使用过的工具。Prometheus counter 本应加一，却加了两次。observation budget 已经超限，可智能体还在继续，因为预算只在链里被跟踪，而 sandbox 并不知道。
 
-This lesson is the integration test for the whole track. The agent has to do four things in order: read the project, run the tests, identify the bug from the test failure, write the fix, rerun the tests, and stop. Every operation goes through the gate chain. Every tool execution goes through the sandbox. Every step is wrapped in a span. The eval harness scores the whole thing at the end.
+本课就是整个 track 的集成测试。智能体必须按顺序完成四件事：读取项目、运行测试、从测试失败中定位 bug、写入修复、再次运行测试，然后停止。每个操作都经过 gate chain。每次工具执行都经过 sandbox。每一步都包在 span 里。最后由 eval harness 给整次运行打分。
 
-## The Concept
+## 概念
 
 ```mermaid
 flowchart TD
-  Repo[Repo fixture<br/>src/fizz.py buggy<br/>tests/test_fizz.py] --> Harness
-  Policy[Policy<br/>deterministic stand-in<br/>for the model] -->|tool call| Harness
+  Repo[仓库夹具<br/>src/fizz.py 有 bug<br/>tests/test_fizz.py] --> Harness
+  Policy[策略<br/>模型的确定性替身] -->|tool call| Harness
   Harness[Harness<br/>gate chain / sandbox<br/>span builder / observation ledger] -->|observation| Policy
-  Harness --> Out[EvalReport + JSONL<br/>+ Prometheus exposition]
+  Harness --> Out[EvalReport + JSONL<br/>+ Prometheus 暴露文本]
 ```
 
-The agent's policy is a state machine. Five states.
+智能体的策略是一个状态机，共五个状态。
 
-`SURVEY`: the agent reads the project listing. The next state is RUN_TESTS.
+`SURVEY`：智能体读取项目列表。下一个状态是 RUN_TESTS。
 
-`RUN_TESTS`: the agent runs the test command. If the tests pass, the state machine halts with success. Otherwise the next state is INSPECT.
+`RUN_TESTS`：智能体运行测试命令。如果测试通过，状态机就成功停止。否则下一个状态是 INSPECT。
 
-`INSPECT`: the agent reads the failing source file. The next state is FIX.
+`INSPECT`：智能体读取失败的源文件。下一个状态是 FIX。
 
-`FIX`: the agent writes the corrected file. The next state is VERIFY.
+`FIX`：智能体写入修正后的文件。下一个状态是 VERIFY。
 
-`VERIFY`: the agent runs the test command again. If the tests pass, halt success. Otherwise halt with failure.
+`VERIFY`：智能体再次运行测试命令。如果测试通过，则成功停止；否则失败停止。
 
-Each state corresponds to a tool call. Each tool call passes through the gate chain. If a tool call is denied, the agent reports the refusal in the trace and halts.
+每个状态都对应一次工具调用。每次工具调用都要经过 gate chain。如果某次工具调用被拒绝，智能体会在 trace 中记录这次 refusal，并立即停止。
 
-The fixture bug is an off-by-one in `fizz.py`. The deterministic policy detects the bug from the test failure message via a regex and emits the corrected file. Replacing the policy with an LLM does not change the harness contract.
+夹具 bug 是 `fizz.py` 中的一个 off-by-one。这个确定性策略会用正则从测试失败消息中识别出 bug，然后输出修正后的文件。把策略换成 LLM，不会改变运行框架契约。
 
-## Architecture
+## 架构
 
 ```mermaid
 flowchart TD
   Policy -->|step| Dispatcher[StepDispatcher]
   Dispatcher --> Gate[GateChain.evaluate]
   Gate -->|ALLOW| Sandbox
-  Gate -->|DENY| Refuse[refuse note]
-  Sandbox --> Obs[Observation<br/>append to ledger]
+  Gate -->|DENY| Refuse[拒绝说明]
+  Sandbox --> Obs[Observation<br/>追加到 ledger]
   Obs --> Span
   Refuse --> SpanErr[Span ERROR]
-  Span --> Back[back to Policy]
+  Span --> Back[返回 Policy]
   SpanErr --> Back
   Back --> Policy
 ```
 
-The lesson is self-contained. Each prior-lesson primitive is reimplemented at minimal scale in `main.py` (gate, sandbox, ledger, span) so the lesson runs without importing siblings. The names match lessons 25-28 exactly so the conceptual mapping is unambiguous.
+本课是自包含的。前几课中的每个原语，都会在 `main.py` 里以最小规模重新实现（gate、sandbox、ledger、span），因此本课无需导入同级目录。名称与第 25-28 课保持完全一致，使概念映射清晰明确。
 
-## What you will build
+## 你将构建什么
 
-`main.py` ships:
+`main.py` 提供：
 
-1. The minimal harness primitives, copied with the same names as lessons 25-28: `GateChain`, `Sandbox`, `ObservationLedger`, `SpanBuilder`, `MetricsRegistry`.
-2. `CodingAgentPolicy` class: state machine with five states.
-3. `Repo` helper: prepares a scratch dir with the bundled buggy fixture.
-4. `AgentRun` class: drives the policy, dispatches through the harness, returns an `AgentRunReport`.
-5. A bundled fixture (`fixture_repo/`) with src/fizz.py, tests/test_fizz.py, and an expected/ tree for the eval harness.
-6. Demo: runs the policy end-to-end, prints the step-by-step trace, asserts pass, prints metrics.
+1. 最小化的运行框架原语，名称与第 25-28 课保持一致：`GateChain`、`Sandbox`、`ObservationLedger`、`SpanBuilder`、`MetricsRegistry`。
+2. `CodingAgentPolicy` 类：一个包含五个状态的状态机。
+3. `Repo` 辅助类：准备一个 scratch 目录，并放入内置的 buggy fixture。
+4. `AgentRun` 类：驱动策略，通过运行框架完成分发，并返回 `AgentRunReport`。
+5. 一个内置 fixture（`fixture_repo/`），包含 `src/fizz.py`、`tests/test_fizz.py` 和供 eval harness 使用的 `expected/` 树。
+6. 演示：端到端运行该策略，打印逐步 trace，断言通过，再打印 metrics。
 
-The bundled fixture is the same shape as lesson 27's task structure: a buggy file and a tests file. The test failure message contains enough information for the deterministic policy to identify the fix. A real LLM would do the same job, slower and with broader recall, but it would not change the harness's expectations.
+内置 fixture 的形状与第 27 课任务结构相同：一个 buggy 文件，加一个 tests 文件。测试失败消息中包含足够信息，使这个确定性策略能够识别修复方式。真实 LLM 做的是同一件事，只是更慢、召回更广，但它不会改变运行框架的期望。
 
-## Why the policy is not an LLM
+## 为什么策略不是 LLM
 
-A real LLM requires an API key, a network call, and unverifiable stochasticity. The harness is the part the lesson cares about. Subbing in a deterministic policy lets the lesson run on any developer laptop with zero external dependencies and lets the test suite assert exact-step counts.
+真实 LLM 需要 API key、网络调用，以及无法验证的随机性。课程真正关心的是运行框架本身。换成确定性策略后，课程就能在任意开发者笔记本上零外部依赖运行，测试套件也可以断言精确的步骤计数。
 
-The lesson's policy is a strict subset of what an LLM agent does. The policy reads the repo, sees the failing test, identifies the line, and emits a fix. An LLM goes through the same loop with the same harness contract; the bookkeeping is identical.
+本课中的策略，是 LLM 智能体所做事情的严格子集。策略会读取仓库、看到失败测试、定位代码行并输出修复。LLM 也走同样的循环，使用同样的运行框架契约；记账方式完全一致。
 
-## What the demo asserts
+## 演示会断言什么
 
-The end-to-end demo asserts five things at exit time, and the test suite reasserts them programmatically.
+端到端演示在退出时会断言五件事，测试套件也会以编程方式重新断言它们。
 
-The policy solved the fixture in fewer than 12 steps.
+策略在少于 12 步内解决了这个 fixture。
 
-The observation budget was never exceeded.
+观察预算从未超限。
 
-Zero gate denials fired on legal tools. (The agent never invented a denied tool name.)
+对合法工具的 gate 拒绝次数为零。（智能体从未编造被拒绝的工具名。）
 
-Every step has a corresponding span in the traces.jsonl.
+`traces.jsonl` 中每一步都有对应的 span。
 
-The Prometheus exposition contains a `tools_called_total{tool="read_file"}` entry and a `tool_latency_ms` histogram.
+Prometheus 暴露文本中包含 `tools_called_total{tool="read_file"}` 条目，以及 `tool_latency_ms` histogram。
 
-## How this composes with the rest of Track A
+## 它如何与 Track A 的其他内容组合
 
-This lesson is the integration. Lesson 25 wrote the gate chain. Lesson 26 wrote the sandbox. Lesson 27 wrote the eval harness. Lesson 28 wrote the observability. Lesson 29 proves they work as a system. A real agent harness extends from here: swap the deterministic policy for a model, swap the bundled fixture for a real-repo task, swap the JSONL exporter for OTLP.
+本课就是集成层。第 25 课写了 gate chain。第 26 课写了 sandbox。第 27 课写了 eval harness。第 28 课写了可观测性。第 29 课证明它们作为一个系统可以协同工作。真实智能体运行框架可以从这里继续扩展：把确定性策略换成模型，把内置 fixture 换成真实仓库任务，把 JSONL exporter 换成 OTLP。
 
-## Running it
+## 运行方式
 
 ```bash
 cd phases/19-capstone-projects/29-end-to-end-coding-task-demo
@@ -112,4 +112,5 @@ python3 code/main.py
 python3 -m pytest code/tests/ -v
 ```
 
-The demo prints a per-step trace, the final eval report, and the Prometheus exposition. Exit code is zero. The tests cover the policy state transitions, the gate refusals on synthetic tool calls, the end-to-end run on the bundled fixture, and the step-budget invariants.
+演示会打印逐步 trace、最终 eval report，以及 Prometheus 暴露文本。退出码为零。测试覆盖策略状态迁移、对合成工具调用的 gate refusal、在内置 fixture 上的端到端运行，以及步骤预算不变量。
+

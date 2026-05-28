@@ -1,128 +1,128 @@
-# Failure Modes: Why Agents Break
+# 失效模式：为什么智能体会失效
 
-> MASFT (Berkeley, 2025) catalogs 14 multi-agent failure modes in 3 categories. Microsoft's Taxonomy documents how existing AI failures amplify in agentic settings. Industry field data converges on five recurring modes: hallucinated actions, scope creep, cascading errors, context loss, tool misuse.
+> MASFT（Berkeley，2025）将 14 种多智能体失效模式归类为 3 个类别。微软的分类法记录了现有 AI 失效如何在智能体场景中被放大。行业一线数据则收敛到五种反复出现的模式：幻觉动作、范围蔓延、级联错误、上下文丢失、工具误用。
 
-**Type:** Learn + Build
-**Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 05 (Self-Refine and CRITIC), Phase 14 · 24 (Observability)
-**Time:** ~60 minutes
+**类型：** 学习 + 构建
+**语言：** Python（标准库）
+**先修要求：** 第 14 阶段 · 05（Self-Refine 与 CRITIC），第 14 阶段 · 24（可观测性）
+**耗时：** ~60 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Name MASFT's three failure categories and at least four specific modes in each.
-- Explain why agentic failure amplifies existing AI failure modes (bias, hallucination).
-- Describe the five industry-recurring modes and their mitigations.
-- Implement a stdlib detector that tags agent traces with failure-mode labels.
+- 说出 MASFT 的三个失效类别，以及每类至少四种具体模式。
+- 解释为什么智能体失效会放大现有 AI 失效模式（偏见、幻觉）。
+- 描述行业中反复出现的五种模式及其缓解方式。
+- 实现一个标准库检测器，用失效模式标签标注智能体运行轨迹。
 
-## The Problem
+## 问题
 
-Teams ship agents that work on 90% of traces. The 10% failures are not random noise — they fall into a small number of recurring categories. Once you can name them, you can monitor for them and fix them.
+团队发布的智能体在 90% 的运行轨迹上都能工作。剩下 10% 的失败并不是随机噪声——它们会落在少数几个反复出现的类别里。一旦你能给它们命名，你就能监控它们并修复它们。
 
-## The Concept
+## 概念
 
-### MASFT (Berkeley, arXiv:2503.13657)
+### MASFT（Berkeley，arXiv:2503.13657）
 
-Multi-Agent System Failure Taxonomy. 14 failure modes clustered into 3 categories. Inter-annotator Cohen's Kappa 0.88 — the categories are reliably distinguishable.
+多智能体系统失效分类法。14 种失效模式被聚类到 3 个类别中。标注者之间的一致性 Cohen's Kappa 为 0.88 —— 说明这些类别可以被可靠地区分。
 
-Central claim: failures are fundamental design flaws in multi-agent systems, not LLM limitations to be fixed with better base models.
+核心主张：失效是多智能体系统中的基础设计缺陷，而不只是可以靠更好的基础模型修复的 LLM 局限。
 
-### Microsoft Taxonomy of Failure Mode in Agentic AI Systems
+### 微软的智能体式 AI 系统失效模式分类
 
-- Existing AI failures (bias, hallucination, data leakage) amplify in agentic settings.
-- New failures emerge from autonomy: unintended action at scale, tool misuse, mission drift.
-- The whitepaper is the risk register for agentic products.
+- 现有 AI 失效（偏见、幻觉、数据泄漏）会在智能体场景中被放大。
+- 由自主性引出的新失效会出现：大规模非预期动作、工具误用、任务漂移。
+- 这篇白皮书就是智能体产品的风险登记表。
 
-### Characterizing Faults in Agentic AI (arXiv:2603.06847)
+### 智能体式 AI 中的故障特征（arXiv:2603.06847）
 
-- Failures arise from orchestration, internal state evolution, and environment interaction.
-- Not just "bad code" or "bad model output."
+- 失效源自编排、内部状态演化和环境交互。
+- 不只是“代码写坏了”或“模型输出差”。
 
-### LLM Agent Hallucinations Survey (arXiv:2509.18970)
+### LLM 智能体幻觉综述（arXiv:2509.18970）
 
-Two primary manifestations:
+两种主要表现：
 
-1. **Instruction-following Deviation** — agent doesn't follow the system prompt.
-2. **Long-range Contextual Misuse** — agent forgets or misapplies context from earlier turns.
+1. **指令遵循偏差** —— 智能体没有遵循系统提示词。
+2. **长程上下文误用** —— 智能体遗忘了早先轮次中的上下文，或者错误使用了它。
 
-Sub-intention errors: Omission (missed step), Redundancy (repeated step), Disorder (out-of-order steps).
+子意图错误：遗漏、冗余、失序。
 
-### The five industry-recurring modes
+### 行业内反复出现的五种模式
 
-Arize, Galileo, NimbleBrain 2024-2026 field analyses converge on:
+Arize、Galileo、NimbleBrain 在 2024-2026 年的实地分析收敛到以下模式：
 
-1. **Hallucinated actions.** Agent invokes a tool that doesn't exist or fabricates arguments.
-2. **Scope creep.** Agent expands task beyond the user's ask (creates extra PRs, sends extra emails).
-3. **Cascading errors.** One wrong call triggers downstream effects. A phantom SKU hallucination triggers four API calls — a multi-system incident.
-4. **Context loss.** Long-horizon tasks forget early-turn constraints.
-5. **Tool misuse.** Calls the right tool with wrong arguments, or the wrong tool entirely.
+1. **幻觉动作。** 智能体调用了不存在的工具，或者臆造了参数。
+2. **范围蔓延。** 智能体把任务扩展到了用户要求之外（创建额外拉取请求、发送额外邮件）。
+3. **级联错误。** 一次错误调用触发连锁下游影响。一个虚构的 SKU 幻觉触发四次 API 调用——变成跨系统事故。
+4. **上下文丢失。** 长时程任务忘记了早期轮次中的约束。
+5. **工具误用。** 调用了对的工具却传错参数，或者干脆用了错误的工具。
 
-Cascading is the killer. Agents cannot distinguish "I failed" from "the task is impossible" and often hallucinate a success message on 400 errors to close the loop.
+级联错误是最致命的。智能体无法区分“我失败了”和“任务不可能完成”，并且经常会在收到 400 错误后仍幻觉出一条成功消息来闭环。
 
-### Mitigation: gates at every step
+### 缓解方式：每一步都加门控
 
-Automated verification gates at every step of a reasoning chain, checking factual grounding against environment state. Concretely:
+在推理链的每一步设置自动验证闸门，针对环境状态检查事实依据。具体来说：
 
-- Per-step safety classifier (Lesson 21).
-- Tool-call argument validation (Lesson 06).
-- Cross-check retrieved content against known facts (Lesson 05, CRITIC).
-- Detect success hallucination by re-probing state (was the file actually created?).
+- 逐步安全分类器（见第 21 课）。
+- 工具调用参数校验（见第 06 课）。
+- 将检索内容与已知事实交叉核对（见第 05 课，CRITIC）。
+- 通过重新探测状态来检测成功幻觉（例如文件真的创建了吗？）。
 
-### Where failure monitoring goes wrong
+### 失效监控通常会在哪些地方出错
 
-- **Tagging only crashes.** Most agent failures produce valid-looking output. Need content-level checks.
-- **No baseline.** Drift detection needs a last-known-good; without it you cannot say "this is getting worse."
-- **Over-alerting.** Every failure produces a page. Cluster and rate-limit.
+- **只给崩溃打标签。** 大多数智能体失败会产出看起来“像是正确的”输出。你需要内容级检查。
+- **没有基线。** 漂移检测需要一个“上次已知良好”基线；没有它，你就无法说“情况正在变差”。
+- **过度告警。** 每个失败都触发一次页面告警。应进行聚类并限流。
 
-## Build It
+## 动手构建
 
-`code/main.py` implements a stdlib failure-mode tagger:
+`code/main.py` 实现了一个标准库失效模式标注器：
 
-- A synthetic trace dataset covering the five modes.
-- Detector functions per mode (signature patterns on tool calls, outputs, repeat actions).
-- A tagger that labels each trace and reports mode distribution.
+- 一个覆盖五种模式的合成运行轨迹数据集。
+- 每种模式对应的检测函数（基于工具调用、输出、重复动作的特征模式）。
+- 一个为每条运行轨迹打标签并报告模式分布的标注器。
 
-Run it:
+运行它：
 
 ```
 python3 code/main.py
 ```
 
-Output: per-trace labels + aggregate distribution, a cheap reproduction of what Phoenix's trace clustering surfaces.
+输出：每条运行轨迹的标签与聚合后的分布，这是对 Phoenix 运行轨迹聚类能力的一种低成本复现。
 
-## Use It
+## 使用它
 
-- **Phoenix** for production drift clustering (Lesson 24).
-- **Langfuse** for session replay + annotation.
-- **Custom** for domain-specific signatures your observability platform can't detect.
+- **Phoenix**：用于生产环境中的漂移聚类（第 24 课）。
+- **Langfuse**：用于会话回放与标注。
+- **自定义**：用于你的可观测性平台无法检测的领域特定特征。
 
-## Ship It
+## 交付它
 
-`outputs/skill-failure-detector.md` generates failure-mode detectors tailored to your domain, wired to a trace store.
+`outputs/skill-failure-detector.md` 会生成适配你领域的失效模式检测器，并连接到运行轨迹存储。
 
-## Exercises
+## 练习
 
-1. Add a detector for "success hallucination": agent returns success but the target state is unchanged.
-2. Tag 100 real traces from a product you've built. Which mode dominates? What's the cost of fixing it?
-3. Implement a "cascade radius" metric: given a failure at step N, how many downstream steps did it affect?
-4. Read MASFT's 14 failure modes. Pick three that apply to your product. Write detectors.
-5. Wire one detector into a CI job: fail the build if >=5% of traces tag a mode.
+1. 添加一个“成功幻觉”检测器：智能体返回成功，但目标状态没有变化。
+2. 给你构建过的某个产品中的 100 条真实运行轨迹打标签。哪种模式占主导？修复它的成本是多少？
+3. 实现一个“级联半径”指标：若第 N 步发生失败，它影响了多少后续步骤？
+4. 阅读 MASFT 的 14 种失效模式。选出三种适用于你产品的模式，并编写检测器。
+5. 把一个检测器接入 CI 任务：如果 >=5% 的运行轨迹被标注为某种模式，就让构建失败。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|----------------|------------------------|
-| MASFT | "Multi-agent failure taxonomy" | Berkeley 14-mode categorization |
-| Cascading error | "Ripple failure" | One early mistake propagates through N steps |
-| Context loss | "Forgot the constraint" | Long-horizon turn drops early-turn facts |
-| Tool misuse | "Wrong tool / wrong args" | Valid call, wrong invocation |
-| Success hallucination | "Faked completion" | Agent claims success on a 400; state unchanged |
-| Scope creep | "Overreach" | Agent does more than asked |
-| Instruction-following deviation | "Disobedience" | Ignores system prompt or user constraint |
-| Sub-intention errors | "Plan bugs" | Omission, redundancy, disorder in plan execution |
+| 术语 | 人们怎么说 | 实际含义 |
+|------|------------|----------|
+| MASFT | “多智能体失效分类法” | Berkeley 的 14 模式分类 |
+| 级联错误 | “涟漪式失败” | 一个早期错误在 N 个步骤中传播 |
+| 上下文丢失 | “忘了约束” | 长时程轮次中丢掉早先轮次的事实 |
+| 工具误用 | “工具错了 / 参数错了” | 调用本身合法，但调用方式错误 |
+| 成功幻觉 | “伪造完成” | 收到 400 仍声称成功；状态未变化 |
+| 范围蔓延 | “越界扩张” | 智能体做了超出要求的事 |
+| 指令遵循偏差 | “不听指令” | 忽略系统提示词或用户约束 |
+| 子意图错误 | “计划缺陷” | 执行计划中的遗漏、冗余、失序 |
 
-## Further Reading
+## 延伸阅读
 
-- [Cemri et al., MASFT (arXiv:2503.13657)](https://arxiv.org/abs/2503.13657) — 14 failure modes, 3 categories
-- [Microsoft, Taxonomy of Failure Mode in Agentic AI Systems](https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/final/en-us/microsoft-brand/documents/Taxonomy-of-Failure-Mode-in-Agentic-AI-Systems-Whitepaper.pdf) — risk register
-- [Arize Phoenix](https://docs.arize.com/phoenix) — drift clustering in practice
-- [Anthropic, Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — when simpler patterns avoid modes entirely
+- [Cemri et al., MASFT (arXiv:2503.13657)](https://arxiv.org/abs/2503.13657) — 14 种失效模式，3 个类别
+- [Microsoft, Taxonomy of Failure Mode in Agentic AI Systems](https://cdn-dynmedia-1.microsoft.com/is/content/microsoftcorp/microsoft/final/en-us/microsoft-brand/documents/Taxonomy-of-Failure-Mode-in-Agentic-AI-Systems-Whitepaper.pdf) — 风险登记表
+- [Arize Phoenix](https://docs.arize.com/phoenix) — 实践中的漂移聚类
+- [Anthropic, Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) — 何时更简单的模式能完全避开这些失效模式

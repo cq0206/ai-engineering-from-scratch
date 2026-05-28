@@ -1,147 +1,147 @@
-# Capstone Lesson 39: Instruction Tuning by Supervised Fine-Tuning
+# 毕业项目课 39：通过监督式微调进行指令微调
 
-> A pretrained base model can extend a sequence but cannot follow an instruction. Supervised fine-tuning is the smallest change that fixes this: feed the model paired examples of an instruction and a desired response, and train the body to predict the response tokens. The trick is that you only want the loss to count the response, not the instruction. This lesson builds an Alpaca-style SFT loop with a custom collate function that masks instruction tokens with `ignore_index=-100`, trains on 200 instruction-response pairs, and evaluates on a held-out split using exact-match.
+> 一个预训练基础模型可以延长序列，但不会遵循指令。修复这一点的最小改动，就是监督式微调 (Supervised Fine-Tuning, SFT)：给模型喂入成对的指令和期望响应示例，并训练主体去预测响应词元。诀窍在于，你只希望损失函数统计响应，而不是指令。本课会构建一个 Alpaca 风格的 SFT 循环，配上自定义 collate 函数 (collate function)，用 `ignore_index=-100` 屏蔽指令词元，在 200 组指令-响应样本上训练，并在保留划分上用精确匹配 (exact-match) 进行评估。
 
-**Type:** Build
-**Languages:** Python (torch, numpy)
-**Prerequisites:** Phase 19 lessons 30-37 (NLP LLM track: tokenizer, embedding table, attention block, transformer body, pre-training loop, checkpointing, generation, perplexity)
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python (torch, numpy)
+**前置要求：** 第 19 阶段第 30-37 课（NLP LLM 轨道：tokenizer、embedding table、attention block、transformer body、pre-training loop、checkpointing、generation、perplexity）
+**耗时：** ~90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Format paired instruction-response data into a single causal sequence with explicit boundary tokens.
-- Build a collate function that masks instruction tokens so cross-entropy only counts response tokens.
-- Train a tiny transformer body under the SFT objective and watch the eval metric move.
-- Implement greedy and temperature-sampled generation that respects the response-start boundary.
-- Compute held-out exact-match on generated completions.
+- 把成对的指令-响应数据格式化为一个带显式边界词元 (boundary tokens) 的单一因果序列 (causal sequence)。
+- 构建一个 collate 函数，对指令词元做掩码，使交叉熵只统计响应词元。
+- 在 SFT 目标下训练一个小型 transformer 主体，并观察评估指标如何变化。
+- 实现尊重响应起始边界的贪心生成与温度采样生成。
+- 对生成结果在保留集上计算 exact-match。
 
-## The Problem
+## 问题
 
-A base model trained on next-token prediction has no idea what an instruction is. Show it the string `"What is the capital of France?"` and it will continue the question or invent a new sentence. The model has the language but not the format contract.
+一个通过下一个词元预测训练出来的基础模型，并不知道什么叫“指令”。把字符串 `"What is the capital of France?"` 给它，它会继续把问题写下去，或者凭空编造一句新话。模型掌握了语言，却没有掌握格式契约。
 
-The SFT contract is a string template. Every training example becomes a single sequence with three regions:
+SFT 的契约其实就是一个字符串模板。每个训练样本都会变成一个包含三个区域的单一序列：
 
 ```text
 <INST> What is the capital of France? <RESP> The capital of France is Paris.
 ```
 
-The boundary tokens are special tokens reserved at training time. The model learns that everything after `&lt;RESP>` is the response and the response is what gets graded. The base model's next-token objective still applies; it is just trained on a corpus where every example has this shape.
+这些边界词元是训练时预留出来的特殊词元。模型会学到：`&lt;RESP>` 之后的所有内容都是响应，而真正被评分的也是响应。基础模型的下一个词元目标依然成立；只不过它现在是在一个“每个样本都具有这种形状”的语料上训练。
 
-But there is a catch. If you feed the entire sequence to a vanilla cross-entropy loss, you are training the model to also predict the instruction tokens. The instruction is given. You want zero gradient on those positions. The fix is the mask.
+但这里有个陷阱。如果你把整个序列直接喂给普通的交叉熵损失，你其实也在训练模型去预测指令词元。可指令本来就是已知输入。你想要这些位置的梯度为零。解决方法就是掩码。
 
-## The Concept
+## 核心概念
 
 ```mermaid
 flowchart LR
-  Pair[instruction + response] --> Tmpl[apply template<br/>INST + RESP tokens]
-  Tmpl --> Tokens[token ids]
-  Tokens --> Mask[loss mask<br/>-100 on instruction]
-  Mask --> Model[transformer body + LM head]
-  Model --> CE[cross-entropy<br/>ignore_index=-100]
-  CE --> Step[backward + optimiser step]
+  Pair[指令 + 响应] --> Tmpl[应用模板<br/>INST + RESP 词元]
+  Tmpl --> Tokens[词元 id]
+  Tokens --> Mask[损失掩码<br/>指令位置设为 -100]
+  Mask --> Model[transformer 主体 + LM 头]
+  Model --> CE[交叉熵<br/>ignore_index=-100]
+  CE --> Step[反向传播 + 优化器步进]
 ```
 
-`ignore_index` is a feature of `torch.nn.functional.cross_entropy`. Any target position equal to `ignore_index` contributes zero loss and zero gradient. The convention in PyTorch is `-100`. The collate function builds two tensors per example: `input_ids` (the full sequence) and `labels` (a copy of `input_ids` with the instruction positions overwritten by `-100`).
+`ignore_index` 是 `torch.nn.functional.cross_entropy` 的一个特性。任何目标位置只要等于 `ignore_index`，就会贡献零损失和零梯度。PyTorch 的惯例值是 `-100`。collate 函数会为每个样本构建两个张量：`input_ids`（完整序列）和 `labels`（`input_ids` 的一份副本，但把指令位置覆写成 `-100`）。
 
-The model sees the whole sequence during the forward pass; attention can attend to the instruction. The loss only counts response tokens. This is exactly what you want: condition on the instruction, predict the response.
+模型在前向传播时会看到整个序列；注意力可以看见指令。损失函数只会统计响应词元。这正是你想要的：以指令为条件，去预测响应。
 
-## The Data
+## 数据
 
-Two hundred instruction-response pairs are generated deterministically in `main.py`. They cover six task types:
+在 `main.py` 中，会以确定性方式生成 200 组指令-响应样本。它们覆盖六类任务：
 
-- factual single-shot (capital of X)
-- arithmetic
-- list extraction
-- one-sentence summary
-- code (print, sort)
-- definition
+- 单轮事实问答（X 的首都是哪里）
+- 算术
+- 列表提取
+- 单句摘要
+- 代码（print、sort）
+- 定义
 
-Each task has a templated instruction and a deterministic response. This is intentionally simple. Exact-match is brittle, and the lesson uses a fixture where the right answer is one specific string. Real SFT datasets need fuzzy metrics; the principle is identical.
+每类任务都有模板化指令和确定性的响应。这是有意为之。exact-match 很脆弱，因此本课采用一个夹具：正确答案就是唯一的特定字符串。真实的 SFT 数据集需要更模糊的指标；原理完全相同。
 
-Splits are 160 train, 40 test. The test set covers all six task types so per-category exact-match can be reported.
+划分方式是 160 条训练、40 条测试。测试集覆盖全部六类任务，因此可以报告按类别拆分的 exact-match。
 
-## Tokenisation and Padding
+## 分词与填充
 
-The tokeniser is byte-level with three reserved specials:
+这个 tokenizer 是字节级的，并保留了三个特殊 id：
 
-- `INST_ID = 256`: marks the start of the instruction region.
-- `RESP_ID = 257`: marks the boundary between instruction and response.
-- `PAD_ID = 258`: padding for variable-length batches.
+- `INST_ID = 256`：标记指令区域开始。
+- `RESP_ID = 257`：标记指令与响应之间的边界。
+- `PAD_ID = 258`：用于可变长度 batch 的填充。
 
-The sequence is `[INST] inst_bytes [RESP] resp_bytes [PAD]*`. The collate function:
+序列形式为 `[INST] inst_bytes [RESP] resp_bytes [PAD]*`。collate 函数会：
 
-1. Tokenises each example.
-2. Pads every example in the batch to the longest sequence in the batch.
-3. Builds `labels` = `input_ids` shifted by one (causal LM target), with:
-   - The instruction region replaced by `-100`.
-   - The padding region replaced by `-100`.
-   - The `RESP_ID` boundary position itself replaced by `-100` (you do not train the model to predict the boundary token; it predicts what follows).
+1. 对每个样本做分词。
+2. 把 batch 中的每个样本都填充到该 batch 的最长序列长度。
+3. 构建 `labels = input_ids` 向右平移一位后的结果（causal LM 目标），并执行：
+   - 将指令区域替换为 `-100`。
+   - 将 padding 区域替换为 `-100`。
+   - 将 `RESP_ID` 边界位置本身替换为 `-100`（你不训练模型去预测边界词元；模型应该预测的是它后面的内容）。
 
 ```mermaid
 flowchart TD
-  Batch[(examples)] --> Tok[encode + insert specials]
-  Tok --> Pad[pad to longest]
-  Pad --> Shift[shift labels by one]
-  Shift --> Mask[set -100 on<br/>inst / pad / boundary]
+  Batch[(样本)] --> Tok[编码 + 插入特殊词元]
+  Tok --> Pad[填充到最长]
+  Pad --> Shift[labels 右移一位]
+  Shift --> Mask[将 inst / pad / boundary<br/>设为 -100]
   Mask --> Out[(input_ids, labels)]
 ```
 
-The shift is the standard causal trick: position `i` of `input_ids` predicts position `i+1`, so `labels[i] = input_ids[i+1]` (with the final position dropped from the input and the first dropped from the target). The mask is applied after the shift to land on the right positions.
+这个 shift 是标准的因果技巧：`input_ids` 的位置 `i` 负责预测位置 `i+1`，因此 `labels[i] = input_ids[i+1]`（输入去掉最后一个位置，目标去掉第一个位置）。掩码是在 shift 之后再应用的，这样才能落在正确的位置上。
 
-## Training
+## 训练
 
 ```mermaid
 flowchart LR
-  DL[Train loader<br/>200 pairs] --> Fwd[forward]
+  DL[训练加载器<br/>200 组样本] --> Fwd[前向传播]
   Fwd --> Logits[B x T x V]
-  Logits --> Loss[CE with -100 mask]
-  Loss --> Bwd[backward]
-  Bwd --> Opt[Adam optimiser]
-  Opt --> Body[(updated body)]
+  Logits --> Loss[带 -100 掩码的 CE]
+  Loss --> Bwd[反向传播]
+  Bwd --> Opt[Adam 优化器]
+  Opt --> Body[(更新后的主体)]
 ```
 
-The loop is the standard PyTorch SFT loop. Adam, learning rate around 3e-4 to 1e-3, ten to twenty epochs on this fixture, no scheduler. The model is small enough (hidden 96, 2 blocks, max length 64) to train to convergence on CPU inside two minutes.
+这个循环就是标准的 PyTorch SFT 循环。Adam，学习率大约在 3e-4 到 1e-3 之间，在这个夹具上训练 10 到 20 个 epoch，不使用调度器。模型足够小（隐藏维度 96、2 个块、最大长度 64），因此能在 CPU 上两分钟内收敛。
 
-Every fifth epoch the loop runs a tiny eval pass on the held-out set and prints exact-match. Watching exact-match go from 0.0 at epoch one to something like 0.85 at epoch fifteen is the lesson's payoff: you can see the model learning the format and the answers at the same time.
+每隔五个 epoch，循环就会在保留集上跑一个很小的评估，并打印 exact-match。看着 exact-match 从第 1 个 epoch 的 0.0，涨到第 15 个 epoch 左右的 0.85，这正是本课的回报：你能亲眼看到模型同时学会格式和答案。
 
-## Generation
+## 生成
 
-At eval time the model gets the instruction prefix `[INST] inst_bytes [RESP]` and generates tokens until either:
+在评估阶段，模型会接收指令前缀 `[INST] inst_bytes [RESP]`，并持续生成词元，直到发生以下任一情况：
 
-- the sequence reaches `max_len`, or
-- the model emits a special stop heuristic: two consecutive sentence-ending bytes (`.`, `!`, `?`).
+- 序列达到 `max_len`，或者
+- 模型触发一个特殊的停止启发式：连续输出两个句末字节（`.`, `!`, `?`）。
 
-The lesson ships greedy decoding plus an optional temperature sampler. Exact-match uses greedy because temperature would make the metric stochastic. Real systems often sample, then judge fuzzily; that pipeline is lesson 41.
+本课提供贪心解码，并额外支持可选的温度采样器。exact-match 使用贪心解码，因为温度会让指标变成随机的。真实系统通常会先采样，再用模糊标准去判断；那条管线会在第 41 课讲到。
 
-## Exact-Match Evaluation
+## 精确匹配评估
 
-Exact-match is the strictest text metric. The predicted response string is normalised (lowercase, strip whitespace, collapse double spaces) and compared to the reference response, normalised the same way. The metric is either 1 or 0 per example. The aggregate is the mean.
+exact-match 是最严格的文本指标。预测得到的响应字符串会先被规范化（转小写、去掉首尾空白、合并双空格），然后与同样经过规范化的参考响应进行比较。每个样本的指标不是 1 就是 0。整体结果取平均值。
 
-Real SFT pipelines complement exact-match with token-level F1 (lesson 41) and a judge model. Exact-match remains useful because it is unambiguous; if it says 0.7, exactly 70 percent of test instructions produced the gold response character for character.
+真实的 SFT 管线通常会用词元级 F1（第 41 课）和 judge model 来补充 exact-match。但 exact-match 依然有价值，因为它没有歧义；如果它是 0.7，就表示测试指令中有且仅有 70% 逐字符地产生了 gold 响应。
 
-## What you will build
+## 你将构建什么
 
-The implementation is one `main.py` plus tests.
+实现内容是一个 `main.py` 加若干测试。
 
-1. `InstructionTokenizer`: byte-level encoder with reserved specials. Encodes either an instruction prefix or a full pair.
-2. `make_dataset`: generates 200 pairs across six task types with a fixed seed.
-3. `SFTDataset`: returns `(input_ids, labels)` per example, already mask-prepared.
-4. `sft_collate`: dynamic padding, builds the batch tensor, sets `-100` on instruction and pad positions.
-5. `TinyGPT`: transformer body plus tied or untied LM head.
-6. `train_sft`: the SFT loop, with per-epoch eval hooks.
-7. `generate`: causal decode from a prefix, greedy or sampled, with the stop heuristic.
-8. `exact_match`: normalised string comparison, returns float in `[0, 1]`.
-9. `run_demo`: builds the data, trains for twenty epochs, evaluates, prints a per-category breakdown, exits zero on success.
+1. `InstructionTokenizer`：带保留特殊词元的字节级编码器。既可以编码指令前缀，也可以编码完整样本对。
+2. `make_dataset`：使用固定随机种子，生成跨六类任务的 200 组样本。
+3. `SFTDataset`：对每个样本返回 `(input_ids, labels)`，并且已经准备好掩码。
+4. `sft_collate`：动态填充，构建 batch 张量，并在指令和 pad 位置设置 `-100`。
+5. `TinyGPT`：transformer 主体，加上绑定或未绑定的 LM 头。
+6. `train_sft`：SFT 训练循环，带逐 epoch 的评估钩子。
+7. `generate`：从前缀开始做因果解码，可贪心、可采样，并带停止启发式。
+8. `exact_match`：规范化字符串比较，返回 `[0, 1]` 中的浮点数。
+9. `run_demo`：构建数据，训练 20 个 epoch，评估，打印按类别拆分的结果，并在成功时以零状态退出。
 
-## Why the mask matters
+## 为什么掩码很重要
 
-Without the mask, the loss treats instruction tokens as targets. The model learns to predict the instruction. This is a different objective and produces a worse model in two ways. First, model capacity is wasted reconstructing inputs the user always provides. Second, the response loss is smaller in the gradient sum because instruction tokens outnumber response tokens in most batches; the optimiser's effective learning rate on the part you care about is lower than you intended. The mask is not a polish; it is the objective.
+没有掩码时，损失会把指令词元也当作目标。模型会去学习预测指令。这是一个不同的目标，而且会从两个方面让模型变差。第一，模型容量被浪费在重建那些用户本来就会提供的输入上。第二，在大多数 batch 中，指令词元都比响应词元更多，所以在梯度求和里，响应部分的损失占比更小；优化器真正施加在你关心部分上的有效学习率，会比你想要的更低。掩码不是锦上添花；它就是目标本身。
 
-## Stretch goals
+## 延伸目标
 
-- Add a learning-rate warmup followed by cosine decay. SFT is more sensitive to LR than pretraining.
-- Add per-token loss logging and plot the loss curve over training. Notice that early epochs are dominated by template tokens (`&lt;RESP>`, common prefixes) and later epochs are dominated by the actual answer tokens.
-- Extend the eval to BLEU-1 or chrF. Exact-match underestimates models that produce a paraphrase with the same answer.
-- Add a chat template with multi-turn formatting and train on a fixture that includes follow-ups.
+- 增加学习率预热，然后接余弦衰减。与预训练相比，SFT 对 LR 更敏感。
+- 增加逐词元损失日志，并绘制训练过程中的损失曲线。注意：早期 epoch 往往主要由模板词元（`&lt;RESP>`、常见前缀）主导，后期 epoch 才主要由实际答案词元主导。
+- 把评估扩展到 BLEU-1 或 chrF。exact-match 会低估那些用不同表述给出相同答案的模型。
+- 增加一个支持多轮格式的 chat template，并在包含追问的夹具上训练。
 
-The implementation gives you the format contract, the mask, and the loop. The objective change from base model to instruction follower is one collate function.
+这份实现把格式契约、掩码和训练循环都交给你了。从基础模型变成指令跟随者，目标函数上的变化其实只是一个 collate 函数。

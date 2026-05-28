@@ -1,63 +1,63 @@
-# Pre-Training a Mini GPT (124M Parameters)
+# 预训练（Pre-Training）一个迷你 GPT（124M 参数）
 
-> GPT-2 Small has 124 million parameters. That's 12 transformer layers, 12 attention heads, and 768-dimensional embeddings. You can train it from scratch on a single GPU in a few hours. Most people never do this. They use pre-trained checkpoints. But if you don't train one yourself, you don't actually understand what's happening inside the model you're building products on.
+> GPT-2 Small 有 1.24 亿个参数。这意味着 12 层 Transformer、12 个注意力头，以及 768 维嵌入。你可以在单张 GPU 上用几小时从零训练它。大多数人从不这样做，而是直接使用预训练检查点（pre-trained checkpoints）。但如果你没有亲手训练过一个模型，你其实并不真正理解你正在拿来做产品的模型内部发生了什么。
 
-**Type:** Build
-**Languages:** Python (with numpy)
-**Prerequisites:** Phase 10, Lessons 01-03 (Tokenizers, Building a Tokenizer, Data Pipelines)
-**Time:** ~120 minutes
+**类型：** 构建
+**语言：** Python（使用 numpy）
+**前置要求：** 第 10 阶段，第 01-03 课（分词器、构建分词器、数据管道）
+**时间：** 约 120 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Implement the full GPT-2 architecture (124M parameters) from scratch: token embeddings, positional embeddings, transformer blocks, and the language model head
-- Train a GPT model on a text corpus using next-token prediction with cross-entropy loss
-- Implement autoregressive text generation with temperature sampling and top-k/top-p filtering
-- Monitor training loss curves and validate that the model learns coherent language patterns
+- 从零实现完整的 GPT-2 架构（124M 参数）：Token 嵌入、位置嵌入、Transformer 块，以及语言模型头（language model head）
+- 使用下一个 Token 预测和交叉熵损失（cross-entropy loss）在文本语料上训练 GPT 模型
+- 使用温度采样（temperature sampling）和 top-k/top-p 过滤实现自回归（autoregressive）文本生成
+- 监控训练损失曲线，并验证模型确实学会了连贯的语言模式
 
-## The Problem
+## 问题
 
-You know what a transformer is. You have read the diagrams. You can recite "attention is all you need" and draw boxes labeled "Multi-Head Attention" on a whiteboard.
+你知道 Transformer 是什么。你看过那些图。你能背出 “attention is all you need”，也能在白板上画出写着 “Multi-Head Attention” 的方框。
 
-None of that means you understand what happens when a model generates text.
+但这并不意味着你理解了模型生成文本时到底发生了什么。
 
-There are 124,438,272 parameters in GPT-2 Small (with weight tying). Every single one of them was set by running a training loop: forward pass, compute loss, backward pass, update weights. Twelve transformer blocks. Twelve attention heads per block. A 768-dimensional embedding space. A vocabulary of 50,257 tokens. Every time the model generates a token, all 124 million parameters participate in a single matrix multiplication chain that takes a sequence of token IDs and produces a probability distribution over the next token.
+GPT-2 Small（使用权重绑定）里有 124,438,272 个参数。每一个参数，都是通过运行训练循环（training loop）设定出来的：前向传播、计算损失、反向传播、更新权重。12 个 Transformer 块。每个块 12 个注意力头。一个 768 维的嵌入空间。一个包含 50,257 个 Token 的词表。模型每生成一个 Token，这 1.24 亿个参数都会参与同一条矩阵乘法链：输入一串 Token ID，输出下一个 Token 的概率分布。
 
-If you have never built this yourself, you are working with a black box. You can use the API. You can fine-tune. But when something goes wrong -- when the model hallucinates, when it repeats itself, when it refuses to follow instructions -- you have no mental model for *why*.
+如果你从未亲手搭过这个东西，那你面对的就是一个黑盒。你可以调用 API。你可以做微调（fine-tune）。但当事情出问题时——模型开始幻觉、不断重复、拒绝遵循指令——你脑中并没有一个关于*为什么*会这样的心智模型。
 
-This lesson builds GPT-2 Small from scratch. Not in PyTorch. In numpy. Every matrix multiplication is visible. Every gradient is computed by your code. You will see exactly how 124 million numbers conspire to predict the next word.
+本课会从零构建 GPT-2 Small。不是用 PyTorch，而是用 numpy。每一次矩阵乘法都看得见。每一个梯度都由你的代码算出来。你将亲眼看到这 1.24 亿个数字如何协同起来预测下一个词。
 
-## The Concept
+## 核心概念
 
-### The GPT Architecture
+### GPT 架构
 
-GPT is an autoregressive language model. "Autoregressive" means it generates one token at a time, each conditioned on all previous tokens. The architecture is a stack of transformer decoder blocks.
+GPT 是一种自回归（autoregressive）语言模型。所谓“自回归”，就是它一次生成一个 Token，而且每个 Token 都以之前所有 Token 为条件。它的架构是由一叠 Transformer 解码器块（decoder blocks）组成的。
 
-Here is the full computation graph from token IDs to next-token probabilities:
+下面是从 Token ID 到下一个 Token 概率的完整计算图：
 
-1. Token IDs come in. Shape: (batch_size, seq_len).
-2. Token embedding lookup. Each ID maps to a 768-dimensional vector. Shape: (batch_size, seq_len, 768).
-3. Position embedding lookup. Each position (0, 1, 2, ...) maps to a 768-dimensional vector. Same shape.
-4. Add token embeddings + position embeddings.
-5. Pass through 12 transformer blocks.
-6. Final layer normalization.
-7. Linear projection to vocabulary size. Shape: (batch_size, seq_len, vocab_size).
-8. Softmax to get probabilities.
+1. 输入 Token ID。形状：`(batch_size, seq_len)`。
+2. 查找 Token 嵌入。每个 ID 映射到一个 768 维向量。形状：`(batch_size, seq_len, 768)`。
+3. 查找位置嵌入。每个位置（0、1、2、……）映射到一个 768 维向量。形状相同。
+4. 将 Token 嵌入与位置嵌入相加。
+5. 通过 12 个 Transformer 块。
+6. 最终层归一化（layer normalization）。
+7. 线性投影到词表大小。形状：`(batch_size, seq_len, vocab_size)`。
+8. 经过 Softmax 得到概率。
 
-That is the entire model. No convolutions. No recurrence. Just embeddings, attention, feedforward networks, and layer norms stacked 12 times.
+这就是整个模型。没有卷积。没有循环结构。只有嵌入、注意力、前馈网络（feedforward networks）和层归一化，重复堆叠 12 次。
 
 ```mermaid
 graph TD
-    A["Token IDs\n(batch, seq_len)"] --> B["Token Embeddings\n(batch, seq_len, 768)"]
-    A --> C["Position Embeddings\n(batch, seq_len, 768)"]
-    B --> D["Add"]
+    A["Token 编号\n(batch, seq_len)"] --> B["Token 嵌入\n(batch, seq_len, 768)"]
+    A --> C["位置嵌入\n(batch, seq_len, 768)"]
+    B --> D["相加"]
     C --> D
-    D --> E["Transformer Block 1"]
-    E --> F["Transformer Block 2"]
+    D --> E["Transformer 块 1"]
+    E --> F["Transformer 块 2"]
     F --> G["..."]
-    G --> H["Transformer Block 12"]
-    H --> I["Layer Norm"]
-    I --> J["Linear Head\n(768 -> 50257)"]
-    J --> K["Softmax\nNext-token probabilities"]
+    G --> H["Transformer 块 12"]
+    H --> I["层归一化"]
+    I --> J["线性头\n(768 -> 50257)"]
+    J --> K["Softmax\n下一个 Token 概率"]
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
     style B fill:#1a1a2e,stroke:#0f3460,color:#fff
@@ -71,27 +71,27 @@ graph TD
     style K fill:#1a1a2e,stroke:#51cf66,color:#fff
 ```
 
-### The Transformer Block
+### Transformer 块
 
-Each of the 12 blocks follows the same pattern. Pre-norm architecture (GPT-2 uses pre-norm, not post-norm like the original transformer):
+这 12 个块都遵循同样的模式。它采用预归一化（pre-norm）结构（GPT-2 使用 pre-norm，而不是原始 Transformer 那种后归一化（post-norm））：
 
 1. LayerNorm
-2. Multi-Head Self-Attention
-3. Residual connection (add input back)
+2. 多头自注意力（Multi-Head Self-Attention）
+3. 残差连接（把输入加回来）
 4. LayerNorm
-5. Feed-Forward Network (MLP)
-6. Residual connection (add input back)
+5. 前馈网络（Feed-Forward Network，MLP）
+6. 残差连接（把输入加回来）
 
-The residual connections are critical. Without them, gradients vanish by the time they reach block 1 during backpropagation. With them, gradients can flow directly from the loss to any layer through the "skip" path. This is why you can stack 12, 32, or even 96 blocks (GPT-4 is rumored to use 120).
+残差连接至关重要。没有它们，梯度在反向传播时传到第 1 个块之前就会消失。有了它们，梯度就能通过 “skip” 路径从损失直接流向任意层。这就是为什么你可以堆 12、32，甚至 96 个块（据传 GPT-4 用了 120 个）。
 
-### Attention: The Core Mechanism
+### 注意力：核心机制
 
-Self-attention lets every token look at every previous token and decide how much to attend to each one. Here is the math.
+自注意力（self-attention）让每个 Token 都能查看它之前的所有 Token，并决定应该对每个 Token 分配多少注意力。下面是数学形式。
 
-For each token position, compute three vectors from the input:
-- **Query (Q)**: "What am I looking for?"
-- **Key (K)**: "What do I contain?"
-- **Value (V)**: "What information do I carry?"
+对序列中的每个 Token 位置，从输入中计算三个向量：
+- **Query（Q）**：我在寻找什么？
+- **Key（K）**：我包含什么？
+- **Value（V）**：我携带什么信息？
 
 ```
 Q = input @ W_q    (768 -> 768)
@@ -104,31 +104,31 @@ attention_weights = softmax(attention_scores)
 output = attention_weights @ V
 ```
 
-The causal mask is what makes GPT autoregressive. Position 5 can attend to positions 0-5 but not 6, 7, 8, and so on. This prevents the model from "cheating" by looking at future tokens during training.
+因果掩码（causal mask）是 GPT 之所以具备自回归性质的关键。位置 5 可以关注位置 0-5，但不能关注 6、7、8 等未来位置。这能防止模型在训练时通过偷看未来 Token 来“作弊”。
 
-**Multi-head attention** splits the 768-dimensional space into 12 heads of 64 dimensions each. Each head learns a different attention pattern. One head might track syntactic relationships (subject-verb agreement). Another might track semantic similarity (synonyms). Another might track positional proximity (nearby words). The outputs from all 12 heads are concatenated and projected back to 768 dimensions.
+**多头注意力（multi-head attention）** 会把 768 维空间拆成 12 个头，每个头 64 维。每个头学习一种不同的注意力模式。一个头可能跟踪句法关系（主谓一致），另一个头可能跟踪语义相似性（同义词），还有一个头可能跟踪位置邻近性（相邻词）。12 个头的输出会被拼接起来，再投影回 768 维。
 
 ```mermaid
 graph LR
-    subgraph MultiHead["Multi-Head Attention (12 heads)"]
+    subgraph MultiHead["多头注意力（12 个头）"]
         direction TB
-        I["Input (768)"] --> S1["Split into 12 heads"]
-        S1 --> H1["Head 1\n(64 dims)"]
-        S1 --> H2["Head 2\n(64 dims)"]
+        I["输入（768）"] --> S1["拆分为 12 个头"]
+        S1 --> H1["头 1\n(64 维)"]
+        S1 --> H2["头 2\n(64 维)"]
         S1 --> H3["..."]
-        S1 --> H12["Head 12\n(64 dims)"]
-        H1 --> C["Concat (768)"]
+        S1 --> H12["头 12\n(64 维)"]
+        H1 --> C["拼接（768）"]
         H2 --> C
         H3 --> C
         H12 --> C
-        C --> O["Output Projection\n(768 -> 768)"]
+        C --> O["输出投影\n(768 -> 768)"]
     end
 
-    subgraph SingleHead["Each Head Computes"]
+    subgraph SingleHead["每个头的计算"]
         direction TB
         Q["Q = X @ W_q"] --> A["scores = Q @ K^T / 8"]
         K["K = X @ W_k"] --> A
-        A --> M["Apply causal mask"]
+        A --> M["应用因果掩码"]
         M --> SM["Softmax"]
         SM --> MUL["weights @ V"]
         V["V = X @ W_v"] --> MUL
@@ -141,44 +141,44 @@ graph LR
     style V fill:#1a1a2e,stroke:#0f3460,color:#fff
 ```
 
-The division by sqrt(d_k) -- sqrt(64) = 8 -- is scaling. Without it, the dot products grow large for high-dimensional vectors, pushing softmax into regions where gradients are nearly zero. This was one of the key insights in the original "Attention Is All You Need" paper.
+除以 `sqrt(d_k)`——也就是 `sqrt(64) = 8`——就是缩放（scaling）。没有这一步，高维向量的点积会变得很大，把 Softmax 推进梯度几乎为零的区域。这是原始论文《Attention Is All You Need》中的关键洞见之一。
 
-### KV Cache: Why Inference Is Fast
+### KV 缓存：为什么推理这么快
 
-During training, you process the entire sequence at once. During inference, you generate one token at a time. Without optimization, generating token N requires recomputing attention for all N-1 previous tokens. That is O(N^2) per generated token, or O(N^3) total for a sequence of length N.
+训练时，你一次处理整个序列。推理（inference）时，你一次生成一个 Token。如果不做优化，生成第 N 个 Token 时，需要重新计算前面 N-1 个 Token 的全部注意力。这意味着每生成一个 Token 的代价是 `O(N^2)`，整个长度为 N 的序列总代价是 `O(N^3)`。
 
-KV Cache solves this. After computing K and V for each token, store them. When generating token N+1, you only need to compute Q for the new token and look up the cached K and V from all previous tokens. This reduces per-token cost from O(N) to O(1) for the K and V computation. The attention score calculation is still O(N) because you attend to all previous positions, but you avoid redundant matrix multiplications on the input.
+KV 缓存（KV cache）解决了这个问题。在为每个 Token 计算出 K 和 V 之后，把它们存起来。生成第 N+1 个 Token 时，你只需要为新 Token 计算 Q，然后读取之前所有 Token 缓存好的 K 和 V。这让 K 和 V 计算的单 Token 成本从 `O(N)` 降到 `O(1)`。注意力分数的计算仍然是 `O(N)`，因为你还是要关注所有历史位置，但你避免了在输入上重复做矩阵乘法。
 
-For GPT-2 with 12 layers and 12 heads, the KV cache stores 2 (K + V) x 12 layers x 12 heads x 64 dims = 18,432 values per token. For a 1024-token sequence, that is about 75MB in FP32. For Llama 3 405B with 128 layers, the KV cache for a single sequence can exceed 10GB. This is why long-context inference is memory-bound.
+对于拥有 12 层、12 个头的 GPT-2，KV 缓存为每个 Token 存储 `2 (K + V) x 12 层 x 12 头 x 64 维 = 18,432` 个值。对一个 1024 Token 的序列来说，FP32 下大约是 75MB。对于有 128 层的 Llama 3 405B，单条序列的 KV 缓存可以超过 10GB。这就是为什么长上下文推理是内存受限（memory-bound）的。
 
-### Prefill vs Decode: Two Phases of Inference
+### Prefill 与 Decode：推理的两个阶段
 
-When you send a prompt to an LLM, inference happens in two distinct phases.
+当你把提示词（prompt）发送给 LLM 时，推理会经历两个截然不同的阶段。
 
-**Prefill** processes your entire prompt in parallel. All tokens are known, so the model can compute attention for all positions simultaneously. This phase is compute-bound -- the GPU is doing matrix multiplications at full throughput. For a 1000-token prompt on an A100, prefill takes roughly 20-50ms.
+**Prefill** 会并行处理整个提示词。因为所有 Token 都已知，所以模型可以同时计算所有位置的注意力。这个阶段是计算受限（compute-bound）的——GPU 正以满吞吐量进行矩阵乘法。对于 A100 上一个 1000 Token 的提示词，prefill 大约需要 20-50ms。
 
-**Decode** generates tokens one at a time. Each new token depends on all previous tokens. This phase is memory-bound -- the bottleneck is reading the model weights and KV cache from GPU memory, not the matrix math itself. The GPU's compute cores sit mostly idle waiting for memory reads. For GPT-2, each decode step takes about the same time regardless of how many FLOPs the matmuls require, because memory bandwidth is the constraint.
+**Decode** 会一次生成一个 Token。每个新 Token 都依赖之前的所有 Token。这个阶段是内存受限（memory-bound）的——瓶颈是从 GPU 内存读取模型权重和 KV 缓存，而不是矩阵运算本身。GPU 的计算核心大多在等待内存读取时空转。对 GPT-2 来说，每一步 decode 的耗时几乎差不多，不管矩阵乘法需要多少 FLOPs，因为真正的约束是内存带宽。
 
-This distinction matters for production systems. Prefill throughput scales with GPU compute (more FLOPS = faster prefill). Decode throughput scales with memory bandwidth (faster memory = faster decode). That is why NVIDIA's H100 focused on memory bandwidth improvements over the A100 -- it directly speeds up token generation.
+这种区别对生产系统很重要。Prefill 吞吐量随 GPU 计算能力扩展（更多 FLOPS = 更快的 prefill）。Decode 吞吐量随内存带宽扩展（更快的内存 = 更快的 decode）。这就是为什么 NVIDIA 的 H100 相比 A100 更强调内存带宽提升——它会直接加速 Token 生成。
 
 ```mermaid
 graph LR
-    subgraph Prefill["Phase 1: Prefill"]
+    subgraph Prefill["阶段 1：Prefill"]
         direction TB
-        P1["Full prompt\n(all tokens known)"]
-        P2["Parallel computation\n(compute-bound)"]
-        P3["Builds KV Cache"]
+        P1["完整提示词\n(所有 Token 已知)"]
+        P2["并行计算\n(计算受限)"]
+        P3["构建 KV 缓存"]
         P1 --> P2 --> P3
     end
 
-    subgraph Decode["Phase 2: Decode"]
+    subgraph Decode["阶段 2：Decode"]
         direction TB
-        D1["Generate token N"]
-        D2["Read KV Cache\n(memory-bound)"]
-        D3["Append to KV Cache"]
-        D4["Generate token N+1"]
+        D1["生成 Token N"]
+        D2["读取 KV 缓存\n(内存受限)"]
+        D3["追加到 KV 缓存"]
+        D4["生成 Token N+1"]
         D1 --> D2 --> D3 --> D4
-        D4 -.->|repeat| D1
+        D4 -.->|重复| D1
     end
 
     Prefill --> Decode
@@ -192,39 +192,39 @@ graph LR
     style D4 fill:#1a1a2e,stroke:#e94560,color:#fff
 ```
 
-### The Training Loop
+### 训练循环
 
-Training an LLM is next-token prediction. Given tokens [0, 1, 2, ..., N-1], predict tokens [1, 2, 3, ..., N]. The loss function is cross-entropy between the model's predicted probability distribution and the actual next token.
+训练 LLM 的本质就是预测下一个 Token。给定 Token `[0, 1, 2, ..., N-1]`，去预测 Token `[1, 2, 3, ..., N]`。损失函数就是模型预测概率分布与真实下一个 Token 之间的交叉熵。
 
-One training step:
+一次训练步骤：
 
-1. **Forward pass**: Run the batch through all 12 blocks. Get logits (pre-softmax scores) for each position.
-2. **Compute loss**: Cross-entropy between logits and target tokens (the input shifted by one position).
-3. **Backward pass**: Compute gradients for all 124M parameters using backpropagation.
-4. **Optimizer step**: Update weights. GPT-2 uses Adam with learning rate warmup and cosine decay.
+1. **前向传播**：让一个 batch 依次通过全部 12 个块。得到每个位置的 logits（Softmax 前的分数）。
+2. **计算损失**：对 logits 和目标 Token（输入整体右移一位）计算交叉熵。
+3. **反向传播**：用反向传播为全部 1.24 亿个参数计算梯度。
+4. **优化器步骤**：更新权重。GPT-2 使用带学习率预热（warmup）和余弦衰减的 Adam。
 
-The learning rate schedule matters more than you might expect. GPT-2 warms up from 0 to the peak learning rate over the first 2,000 steps, then decays following a cosine curve. Starting with a high learning rate causes the model to diverge. Keeping a constant high rate causes oscillation in later training. The warmup-then-decay pattern is used by every major LLM.
+学习率调度的重要性往往超出你的预期。GPT-2 会在前 2,000 步里把学习率从 0 预热到峰值，然后沿着余弦曲线衰减。一开始就用很高的学习率会让模型发散。后期一直维持高学习率会导致训练震荡。先预热再衰减的模式被几乎所有主流 LLM 采用。
 
-### GPT-2 Small: The Numbers
+### GPT-2 Small：参数数字
 
-| Component | Shape | Parameters |
+| 组件 | 形状 | 参数量 |
 |-----------|-------|------------|
-| Token embeddings | (50257, 768) | 38,597,376 |
-| Position embeddings | (1024, 768) | 786,432 |
-| Per-block attention (W_q, W_k, W_v, W_out) | 4 x (768, 768) | 2,359,296 |
-| Per-block FFN (up + down) | (768, 3072) + (3072, 768) | 4,718,592 |
-| Per-block LayerNorms (2x) | 2 x 768 x 2 | 3,072 |
-| Final LayerNorm | 768 x 2 | 1,536 |
-| **Total per block** | | **7,080,960** |
-| **Total (12 blocks)** | | **85,054,464 + 39,383,808 = 124,438,272** |
+| Token 嵌入 | (50257, 768) | 38,597,376 |
+| 位置嵌入 | (1024, 768) | 786,432 |
+| 每个块的注意力（W_q、W_k、W_v、W_out） | 4 x (768, 768) | 2,359,296 |
+| 每个块的 FFN（升维 + 降维） | (768, 3072) + (3072, 768) | 4,718,592 |
+| 每个块的 LayerNorm（2x） | 2 x 768 x 2 | 3,072 |
+| 最终 LayerNorm | 768 x 2 | 1,536 |
+| **每个块合计** | | **7,080,960** |
+| **总计（12 个块）** | | **85,054,464 + 39,383,808 = 124,438,272** |
 
-The output projection (logits head) shares weights with the token embedding matrix. This is called weight tying -- it reduces the parameter count by 38M and improves performance because it forces the model to use the same representation space for input and output.
+输出投影（logits head）与 Token 嵌入矩阵共享权重。这叫做权重绑定（weight tying）——它把参数量减少了 3800 万，并提升了效果，因为它强制模型在输入和输出上使用同一个表示空间。
 
-## Build It
+## 动手实现
 
-### Step 1: Embedding Layer
+### 第 1 步：嵌入层
 
-Token embeddings map each of the 50,257 possible tokens to a 768-dimensional vector. Position embeddings add information about where each token sits in the sequence. The two are summed.
+Token 嵌入会把 50,257 个可能的 Token 中的每一个映射为一个 768 维向量。位置嵌入则加入每个 Token 在序列中所处位置的信息。两者相加。
 
 ```python
 import numpy as np
@@ -241,11 +241,11 @@ class Embedding:
         return tok_emb + pos_emb
 ```
 
-The 0.02 standard deviation for initialization comes from the GPT-2 paper. Too large and the initial forward passes produce extreme values that destabilize training. Too small and the initial outputs are nearly identical for all inputs, making early gradient signals useless.
+初始化时使用 0.02 的标准差来自 GPT-2 论文。如果太大，最初几次前向传播就会产生极端值，导致训练不稳定。如果太小，初始输出对所有输入几乎一样，使早期梯度信号失去意义。
 
-### Step 2: Self-Attention with Causal Mask
+### 第 2 步：带因果掩码的自注意力
 
-Single-head attention first. The causal mask sets future positions to negative infinity before softmax, ensuring each position can only attend to itself and earlier positions.
+先从单头注意力开始。因果掩码会在 Softmax 之前把未来位置设为负无穷，从而保证每个位置只能关注它自己以及它之前的位置。
 
 ```python
 def attention(Q, K, V, mask=None):
@@ -258,11 +258,11 @@ def attention(Q, K, V, mask=None):
     return weights @ V
 ```
 
-The softmax implementation subtracts the maximum before exponentiating. Without this, exp(large_number) overflows to infinity. This is a numerical stability trick that does not change the output because softmax(x - c) = softmax(x) for any constant c.
+这个 Softmax 实现会在取指数之前先减去最大值。否则，`exp(large_number)` 会溢出为无穷大。这是一个数值稳定性技巧，不会改变输出，因为对于任意常数 `c`，都有 `softmax(x - c) = softmax(x)`。
 
-### Step 3: Multi-Head Attention
+### 第 3 步：多头注意力
 
-Split the 768-dimensional input into 12 heads of 64 dimensions each. Each head computes attention independently. Concatenate the results and project back to 768 dimensions.
+把 768 维输入拆成 12 个头，每个头 64 维。每个头独立计算注意力。然后把结果拼接起来，再投影回 768 维。
 
 ```python
 class MultiHeadAttention:
@@ -291,11 +291,11 @@ class MultiHeadAttention:
         return attn_out @ self.W_out
 ```
 
-The reshape-transpose-reshape dance is the most confusing part of multi-head attention. Here is what happens: the (batch, seq_len, 768) tensor becomes (batch, seq_len, 12, 64), then (batch, 12, seq_len, 64). Now each of the 12 heads has its own (seq_len, 64) matrix to run attention on. After attention, we reverse the process: (batch, 12, seq_len, 64) becomes (batch, seq_len, 12, 64) becomes (batch, seq_len, 768).
+`reshape-transpose-reshape` 这一套是多头注意力里最容易让人困惑的部分。过程是这样的：`(batch, seq_len, 768)` 张量先变成 `(batch, seq_len, 12, 64)`，再变成 `(batch, 12, seq_len, 64)`。这样 12 个头就各自拥有一个 `(seq_len, 64)` 矩阵来执行注意力。注意力算完后，再把过程反过来：`(batch, 12, seq_len, 64)` 变回 `(batch, seq_len, 12, 64)`，再变回 `(batch, seq_len, 768)`。
 
-### Step 4: Transformer Block
+### 第 4 步：Transformer 块
 
-One complete transformer block: LayerNorm, multi-head attention with residual, LayerNorm, feedforward with residual.
+一个完整的 Transformer 块：LayerNorm，多头注意力加残差，LayerNorm，前馈网络加残差。
 
 ```python
 class LayerNorm:
@@ -336,11 +336,11 @@ class TransformerBlock:
         return x
 ```
 
-The feedforward network expands the 768-dimensional input to 3,072 dimensions (4x), applies a nonlinearity, then projects back to 768. This expansion-contraction pattern gives the model a "wider" internal representation to work with at each position. GPT-2 uses GELU activation, but we use ReLU here for simplicity -- the difference is minor for understanding the architecture.
+前馈网络会先把 768 维输入扩展到 3,072 维（4 倍），应用一次非线性，再投影回 768 维。这种“先扩后缩”的模式让模型在每个位置上都拥有一个更“宽”的内部表示。GPT-2 使用的是 GELU 激活，但这里为了简化，我们使用 ReLU——对于理解架构来说，这点差异并不大。
 
-### Step 5: Full GPT Model
+### 第 5 步：完整 GPT 模型
 
-Stack 12 transformer blocks. Add the embedding layer at the front and the output projection at the back.
+堆叠 12 个 Transformer 块。在最前面加上嵌入层，在最后面加上输出投影。
 
 ```python
 class MiniGPT:
@@ -382,11 +382,11 @@ class MiniGPT:
         return total
 ```
 
-Notice the weight tying: `logits = x @ self.embedding.token_embed.T`. The output projection reuses the token embedding matrix (transposed). This is not just a parameter-saving trick. It means the model uses the same vector space for understanding tokens (embeddings) and predicting them (output).
+注意这里的权重绑定：`logits = x @ self.embedding.token_embed.T`。输出投影复用了 Token 嵌入矩阵（转置后）。这不只是一个节省参数的小技巧。它意味着模型在“理解”Token（嵌入）和“预测”Token（输出）时使用的是同一个向量空间。
 
-### Step 6: Training Loop
+### 第 6 步：训练循环
 
-For a real training run on 124M parameters, you would need a GPU and PyTorch. This training loop demonstrates the mechanics on a small model that runs in pure numpy. We use a tiny model (4 layers, 4 heads, 128 dims) to make it tractable.
+如果你真的要训练一个拥有 124M 参数的模型，你需要 GPU 和 PyTorch。这个训练循环是在纯 numpy 中演示其工作机制，使用的是一个较小的模型，也能跑得动。我们用一个迷你模型（4 层、4 个头、128 维）来让它变得可操作。
 
 ```python
 def cross_entropy_loss(logits, targets):
@@ -401,6 +401,7 @@ def cross_entropy_loss(logits, targets):
 
     loss = -log_softmax[np.arange(len(targets_flat)), targets_flat].mean()
     return loss
+
 
 
 def train_mini_gpt(text, vocab_size=256, embed_dim=128, num_heads=4,
@@ -432,13 +433,13 @@ def train_mini_gpt(text, vocab_size=256, embed_dim=128, num_heads=4,
     return model
 ```
 
-The loss starts near ln(vocab_size) -- for a 256-token byte-level vocabulary, that is ln(256) = 5.55. A random model assigns equal probability to every token. As training progresses, the loss drops because the model learns to predict common patterns: "th" after "t", space after a period, and so on.
+损失一开始会接近 `ln(vocab_size)`——对于一个 256 Token 的字节级词表来说，就是 `ln(256) = 5.55`。随机模型会给每个 Token 分配相同概率。随着训练推进，损失会下降，因为模型学会了预测常见模式：比如在 `t` 后面是 `th`，句号后面常跟空格，等等。
 
-In production, you would use Adam optimizer with gradient accumulation, learning rate warmup, and gradient clipping. The forward-pass-loss-backward-update loop is identical. The optimizer is more sophisticated.
+在生产环境中，你会使用 Adam 优化器、梯度累积（gradient accumulation）、学习率预热（learning rate warmup）和梯度裁剪（gradient clipping）。前向传播—损失—反向传播—更新这条循环本身并没有变化。只是优化器更复杂而已。
 
-### Step 7: Text Generation
+### 第 7 步：文本生成
 
-Generation uses the trained model to predict one token at a time. Each prediction is sampled from the output distribution (or taken greedily as the argmax).
+生成就是使用训练好的模型一次预测一个 Token。每次预测都从输出分布中进行采样（或者贪心地直接取 argmax）。
 
 ```python
 def generate(model, prompt_tokens, max_new_tokens=100, temperature=0.8):
@@ -460,13 +461,13 @@ def generate(model, prompt_tokens, max_new_tokens=100, temperature=0.8):
     return tokens
 ```
 
-Temperature controls randomness. Temperature 1.0 uses the raw distribution. Temperature 0.5 sharpens it (more deterministic -- the model picks its top choices more often). Temperature 1.5 flattens it (more random -- low-probability tokens get a bigger chance). Temperature 0.0 is greedy decoding (always pick the highest probability token).
+温度（temperature）控制随机性。温度 1.0 使用原始分布。温度 0.5 会让分布更尖锐（更确定——模型更常选它最偏好的结果）。温度 1.5 会让分布更平坦（更随机——低概率 Token 获得更大的机会）。温度 0.0 就是贪心解码（永远选最高概率 Token）。
 
-The `tokens[-seq_len:]` window is necessary because the model has a maximum context length (1024 for GPT-2). Once you exceed it, you must drop the oldest tokens. This is the "context window" that everyone talks about.
+之所以需要 `tokens[-seq_len:]` 这个窗口，是因为模型有最大上下文长度（GPT-2 是 1024）。一旦超过这个长度，你就必须丢掉最老的 Token。这就是大家常说的“上下文窗口（context window）”。
 
-## Use It
+## 试一试
 
-### Full Training and Generation Demo
+### 完整训练与生成演示
 
 ```python
 corpus = """The transformer architecture has revolutionized natural language processing.
@@ -490,42 +491,42 @@ generated_text = bytes(output_tokens).decode("utf-8", errors="replace")
 print(f"\nGenerated: {generated_text}")
 ```
 
-On a small corpus with a small model, the generated text will be semi-coherent at best. It will learn some byte-level patterns from the training text but cannot generalize the way GPT-2 does with 40GB of training data and the full 124M parameter architecture. The point is not the output quality. The point is that you can trace every step: embedding lookup, attention computation, feedforward transformation, logit projection, softmax, and sampling. Every operation is visible.
+在一个小语料和一个小模型上，生成文本最多也只能算半连贯。它会从训练文本里学到一些字节级模式，但无法像 GPT-2 那样，依靠 40GB 训练数据和完整的 124M 参数架构进行泛化。这里的重点不是输出质量，而是你可以追踪每一步：嵌入查找、注意力计算、前馈变换、logit 投影、Softmax 和采样。每个操作都是可见的。
 
-## Ship It
+## 交付成果
 
-This lesson produces `outputs/prompt-gpt-architecture-analyzer.md` -- a prompt that analyzes the architecture choices in any GPT-style model. Feed it a model card or technical report and it breaks down the parameter allocation, attention design, and scaling decisions.
+本课会产出 `outputs/prompt-gpt-architecture-analyzer.md`——一个用于分析任意 GPT 风格模型架构选择的提示词（prompt）。把模型卡（model card）或技术报告喂给它，它就会拆解参数分配、注意力设计和扩展决策。
 
-## Exercises
+## 练习
 
-1. Modify the model to use 24 layers and 16 heads instead of 12/12. Count the parameters. How does doubling the depth compare to doubling the width (embedding dimension)?
+1. 把模型改成使用 24 层和 16 个头，而不是 12/12。数一下参数量。把深度翻倍，与把宽度（嵌入维度）翻倍相比，差别是什么？
 
-2. Implement the GELU activation function (GELU(x) = x * 0.5 * (1 + erf(x / sqrt(2)))) and replace the ReLU in the feedforward network. Run training for 500 steps with each activation and compare the final loss.
+2. 实现 GELU 激活函数（`GELU(x) = x * 0.5 * (1 + erf(x / sqrt(2)))`），并替换前馈网络里的 ReLU。分别用两种激活训练 500 步，比较最终损失。
 
-3. Add a KV cache to the generation function. Store K and V tensors for each layer after the first forward pass, and reuse them for subsequent tokens. Measure the speedup: generate 200 tokens with and without the cache and compare wall-clock time.
+3. 给生成函数加入 KV cache。在第一次前向传播之后，为每一层保存 K 和 V 张量，并在后续 Token 上复用它们。测量加速效果：分别在有缓存和无缓存的情况下生成 200 个 Token，比较实际耗时（wall-clock time）。
 
-4. Implement top-k sampling (only consider the k highest-probability tokens) and top-p sampling (nucleus sampling: consider the smallest set of tokens whose cumulative probability exceeds p). Compare the output quality at temperature 0.8 with top-k=50 vs top-p=0.95.
+4. 实现 top-k 采样（只考虑概率最高的 k 个 Token）和 top-p 采样（核采样，nucleus sampling：只考虑累计概率超过 p 的最小 Token 集合）。比较在温度 0.8 下，`top-k=50` 与 `top-p=0.95` 的输出质量。
 
-5. Build a training loss curve plotter. Train the model for 1000 steps and plot loss vs step. Identify the three phases: rapid initial descent (learning common bytes), slower middle phase (learning byte patterns), and plateau (overfitting on the small corpus). The shape of this curve is the same whether you are training a 128-dim model or GPT-4.
+5. 做一个训练损失曲线绘图器。训练模型 1000 步，并绘制损失相对于步数的曲线。识别其中三个阶段：初期快速下降（学习常见字节）、中期较慢下降（学习字节模式）、平台期（在小语料上过拟合）。无论你训练的是一个 128 维模型还是 GPT-4，这条曲线的形状都是一样的。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们常说 | 实际含义 |
 |------|----------------|----------------------|
-| Autoregressive | "It generates one word at a time" | Each output token is conditioned on all previous tokens -- the model predicts P(token_n \| token_0, ..., token_{n-1}) |
-| Causal mask | "It can't see the future" | An upper-triangular matrix of -infinity values that prevents attention to future positions during training |
-| Multi-head attention | "Multiple attention patterns" | Splitting Q, K, V into parallel heads (e.g., 12 heads of 64 dims each for GPT-2) so each head can learn different relationship types |
-| KV Cache | "Caching for speed" | Storing computed Key and Value tensors from previous tokens to avoid redundant computation during autoregressive generation |
-| Prefill | "Processing the prompt" | The first inference phase where all prompt tokens are processed in parallel -- compute-bound on GPU FLOPS |
-| Decode | "Generating tokens" | The second inference phase where tokens are generated one at a time -- memory-bound on GPU bandwidth |
-| Weight tying | "Sharing embeddings" | Using the same matrix for input token embeddings and the output projection head -- saves 38M params in GPT-2 |
-| Residual connection | "Skip connection" | Adding the input directly to the output of a sublayer (x + sublayer(x)) -- enables gradient flow in deep networks |
-| Layer normalization | "Normalizing activations" | Normalizing across the feature dimension to mean 0 and variance 1, with learnable scale and bias parameters |
-| Cross-entropy loss | "How wrong the predictions are" | -log(probability assigned to the correct next token), averaged over all positions -- the standard LLM training objective |
+| 自回归（Autoregressive） | “它一次生成一个词” | 每个输出 Token 都以所有先前 Token 为条件——模型预测的是 `P(token_n \| token_0, ..., token_{n-1})` |
+| 因果掩码（Causal mask） | “它看不到未来” | 一个由 `-infinity` 组成的上三角矩阵，在训练时阻止注意力指向未来位置 |
+| 多头注意力（Multi-head attention） | “多种注意力模式” | 把 Q、K、V 拆成并行的多个头（例如 GPT-2 中是 12 个头，每个头 64 维），让每个头学习不同类型的关系 |
+| KV Cache | “为了提速做缓存” | 存储前面 Token 已计算出的 Key 和 Value 张量，从而在自回归生成时避免重复计算 |
+| Prefill | “处理提示词” | 推理的第一阶段，所有提示词 Token 会并行处理——在 GPU FLOPS 上是计算受限的 |
+| Decode | “生成 Token” | 推理的第二阶段，Token 会一个一个生成——在 GPU 带宽上是内存受限的 |
+| 权重绑定（Weight tying） | “共享嵌入” | 对输入 Token 嵌入和输出投影头使用同一个矩阵——在 GPT-2 中可节省 3800 万参数 |
+| 残差连接（Residual connection） | “跳跃连接” | 把输入直接加到子层输出上（`x + sublayer(x)`）——让梯度能在深层网络中传播 |
+| 层归一化（Layer normalization） | “把激活归一化” | 沿特征维度做均值 0、方差 1 的归一化，并带有可学习的缩放和偏置参数 |
+| 交叉熵损失（Cross-entropy loss） | “预测错了多少” | `-log(分配给正确下一个 Token 的概率)`，在所有位置上求平均——这是标准的 LLM 训练目标 |
 
-## Further Reading
+## 延伸阅读
 
-- [Radford et al., 2019 -- "Language Models are Unsupervised Multitask Learners" (GPT-2)](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) -- the GPT-2 paper that introduced the 124M to 1.5B parameter family
-- [Vaswani et al., 2017 -- "Attention Is All You Need"](https://arxiv.org/abs/1706.03762) -- the original transformer paper with scaled dot-product attention and multi-head attention
-- [Llama 3 Technical Report](https://arxiv.org/abs/2407.21783) -- how Meta scaled the GPT architecture to 405B parameters with 16K GPUs
-- [Pope et al., 2022 -- "Efficiently Scaling Transformer Inference"](https://arxiv.org/abs/2211.05102) -- the paper that formalized prefill vs decode and KV cache analysis
+- [Radford et al., 2019 -- "Language Models are Unsupervised Multitask Learners" (GPT-2)](https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf) —— 提出 124M 到 1.5B 参数家族的 GPT-2 论文
+- [Vaswani et al., 2017 -- "Attention Is All You Need"](https://arxiv.org/abs/1706.03762) —— 提出缩放点积注意力和多头注意力的原始 Transformer 论文
+- [Llama 3 Technical Report](https://arxiv.org/abs/2407.21783) —— Meta 如何把 GPT 架构扩展到 405B 参数和 16K GPU
+- [Pope et al., 2022 -- "Efficiently Scaling Transformer Inference"](https://arxiv.org/abs/2211.05102) —— 系统化阐述 prefill vs decode 与 KV cache 分析的论文

@@ -1,73 +1,73 @@
-# Data Pipelines for Pre-Training
+# 预训练的数据管道（Data Pipelines）
 
-> The model is a mirror. It reflects whatever data you feed it. Feed it garbage, it reflects garbage with perfect fluency.
+> 模型是一面镜子。你喂给它什么数据，它就映照什么数据。你喂垃圾，它就会以完美流畅的方式映照垃圾。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 10, Lessons 01-02 (Tokenizers, Building a Tokenizer)
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python
+**前置要求：** 第 10 阶段，第 01-02 课（分词器、构建分词器）
+**时间：** 约 90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Build a streaming data pipeline that tokenizes, chunks, shuffles, and batches terabytes of text without loading it all into memory
-- Implement data quality filters (deduplication, language detection, content filtering) used in real pre-training pipelines
-- Create fixed-length training sequences with proper attention masks and document boundary handling
-- Profile pipeline throughput to ensure the dataloader keeps up with GPU training speed
+- 构建一个流式（streaming）数据管道，在不将全部文本加载进内存的前提下，对 TB 级文本进行分词、分块、打乱与分批
+- 实现真实预训练管道中使用的数据质量过滤器，包括去重（deduplication）、语言检测（language detection）和内容过滤（content filtering）
+- 创建固定长度的训练序列（sequences），并正确处理注意力掩码（attention masks）与文档边界
+- 分析管道吞吐量，确保数据加载器（dataloader）能跟上 GPU 训练速度
 
-## The Problem
+## 问题
 
-You have a tokenizer. Now you need data.
+你已经有了一个分词器（tokenizer）。现在你需要数据。
 
-Not a dataset. Not a CSV file. Terabytes of text -- cleaned, deduplicated, filtered for quality, tokenized into fixed-length sequences, and served in randomized batches fast enough that your 8-GPU cluster never waits for the next batch.
+不是一个数据集。不是一个 CSV 文件。而是数 TB 的文本——完成清洗、去重、质量过滤、分词为固定长度序列，并以足够快的随机批次（batches）提供出去，快到你的 8-GPU 集群永远不用等待下一个批次。
 
-Most people think training an LLM is about the model architecture. It is not. Llama 3 used 15.6 trillion tokens. GPT-3 used 300 billion. DeepSeek-V2 used 8.1 trillion. The architecture across all three is roughly the same: stacked transformer blocks with attention and feedforward layers. The difference in output quality comes overwhelmingly from the data.
+大多数人以为训练 LLM 的关键在于模型架构。其实不是。Llama 3 使用了 15.6 万亿个词元（token）。GPT-3 使用了 3000 亿个。DeepSeek-V2 使用了 8.1 万亿个。三者的架构大体相同：由注意力层和前馈层堆叠而成的变换器块（transformer blocks）。输出质量的差异，压倒性地来自数据。
 
-The Chinchilla paper from DeepMind made this precise. For a given compute budget, there is an optimal ratio of model parameters to training tokens. Chinchilla showed that most models in 2022 were dramatically undertrained -- they had too many parameters for the amount of data they saw. A 70B parameter model trained on 1.4 trillion tokens (Chinchilla-optimal) outperformed a 280B model trained on 300 billion tokens (Gopher).
+DeepMind 的 Chinchilla 论文把这件事讲得非常精确。对于给定的计算预算，模型参数量与训练词元数之间存在一个最优比例。Chinchilla 表明，2022 年的大多数模型都严重训练不足——它们的参数太多，而看到的数据太少。一个在 1.4 万亿词元上训练的 70B 参数模型（符合 Chinchilla 最优）优于一个在 3000 亿词元上训练的 280B 模型（Gopher）。
 
-Your data pipeline determines whether your model learns language or learns noise.
+你的数据管道决定了模型学到的是语言，还是噪声。
 
-## The Concept
+## 概念
 
-### Where the Data Comes From
+### 数据从哪里来
 
-Every large language model is trained on a mix of sources. The exact composition is a closely guarded secret for most labs, but we know enough to understand the categories.
+每个大语言模型都会在多种来源的混合数据上训练。对大多数实验室来说，精确配比是严密保守的秘密，但我们已经知道足够多的信息，可以理解主要类别。
 
-| Source | Size | Quality | Used By |
+| 来源 | 规模 | 质量 | 使用方 |
 |--------|------|---------|---------|
-| Common Crawl | ~250 TB raw | Low (needs heavy filtering) | GPT-3, Llama, most open models |
-| Wikipedia | ~20 GB | High | Every major LLM |
-| GitHub code | ~1 TB+ | Medium (lots of duplicates, dead code) | StarCoder, CodeLlama, DeepSeek-Coder |
-| Books (BookCorpus, Pile) | ~100 GB | High | GPT-2, GPT-3, early models |
-| Academic papers (arXiv, S2ORC) | ~100 GB | High for STEM | Llama, Galactica |
-| StackOverflow, Reddit | ~100 GB | Medium | Llama, Falcon |
-| Curated web (C4, RefinedWeb) | ~5 TB | Medium-High (pre-filtered) | T5, Falcon |
+| Common Crawl | 原始数据约 250 TB | 低（需要重度过滤） | GPT-3、Llama、大多数开源模型 |
+| Wikipedia | 约 20 GB | 高 | 每个主流 LLM |
+| GitHub 代码 | 约 1 TB+ | 中（大量重复、失效代码） | StarCoder、CodeLlama、DeepSeek-Coder |
+| 图书（BookCorpus、Pile） | 约 100 GB | 高 | GPT-2、GPT-3、早期模型 |
+| 学术论文（arXiv、S2ORC） | 约 100 GB | 对 STEM 很高 | Llama、Galactica |
+| StackOverflow、Reddit | 约 100 GB | 中 | Llama、Falcon |
+| 精选网页（C4、RefinedWeb） | 约 5 TB | 中高（已预过滤） | T5、Falcon |
 
-Llama 3 disclosed its data mix: roughly 50% web data, 25% code, 13% books and academic papers, 8% math data, and 4% multilingual web data. The total was 15.6 trillion tokens from sources exceeding 5 TB of raw text.
+Llama 3 披露了它的数据配比：大约 50% 网页数据、25% 代码、13% 图书和学术论文、8% 数学数据，以及 4% 多语言网页数据。总量为 15.6 万亿个词元，原始文本来源超过 5 TB。
 
-The ratio matters as much as the total size. Too much web data and the model becomes a Reddit parrot. Too little code and it cannot program. Too little math and it fails at reasoning. Getting this mix right is one of the hardest parts of training an LLM, and there is no formula -- it requires experimentation and evaluation.
+配比和总规模一样重要。网页数据过多，模型就会变成 Reddit 鹦鹉。代码太少，它就不会编程。数学太少，它的推理能力就会失效。把这个配比调对，是训练 LLM 最难的部分之一，而且没有公式——只能靠实验和评估。
 
-### Data Cleaning
+### 数据清洗
 
-Raw web data is filthy. A typical Common Crawl dump contains:
+原始网页数据非常脏。一个典型的 Common Crawl 转储通常包含：
 
-- HTML tags and JavaScript
-- Boilerplate headers, footers, navigation menus
-- Duplicate pages (exact and near-duplicate)
-- Machine-generated spam
-- Personally identifiable information (PII)
-- Low-quality text (lists of keywords, SEO spam)
-- Non-text content encoded as text
+- HTML 标签和 JavaScript
+- 模板化的页眉、页脚、导航菜单
+- 重复页面（完全重复和近重复）
+- 机器生成的垃圾内容
+- 个人身份信息（Personally Identifiable Information，PII）
+- 低质量文本（关键词列表、SEO 垃圾）
+- 以文本形式编码的非文本内容
 
-Cleaning this is not optional. It is the difference between a model that generates coherent paragraphs and one that outputs HTML tags mixed with product listings.
+清洗不是可选项。它决定了你的模型是能生成连贯段落，还是会输出夹杂商品列表的 HTML 标签。
 
 ```mermaid
 graph TD
-    A[Raw Text] --> B[HTML Strip]
-    B --> C[Language Detection]
-    C --> D[Quality Filter]
-    D --> E[Deduplication]
-    E --> F[PII Removal]
-    F --> G[Clean Text]
+    A[原始文本] --> B[HTML 剥离]
+    B --> C[语言检测]
+    C --> D[质量过滤]
+    D --> E[去重]
+    E --> F[PII 移除]
+    F --> G[干净文本]
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
     style B fill:#1a1a2e,stroke:#e94560,color:#fff
@@ -78,32 +78,32 @@ graph TD
     style G fill:#1a1a2e,stroke:#e94560,color:#fff
 ```
 
-Each step eliminates a category of noise:
+每一步都在消除一类噪声：
 
-**HTML stripping:** Remove all markup. Keep only the visible text content. Libraries like `trafilatura` or `readability` extract article content while discarding navigation, ads, and boilerplate.
+**HTML 剥离（HTML stripping）：** 去掉所有标记，只保留用户可见的文本内容。像 `trafilatura` 或 `readability` 这样的库会提取文章正文，同时丢弃导航、广告和模板噪声。
 
-**Language detection:** Use fastText's language identification model (lid.176.bin) to classify each document. Filter to your target languages. A document classified as English with less than 0.8 confidence probably is not clean English.
+**语言检测（Language detection）：** 使用 fastText 的语言识别模型（lid.176.bin）对每个文档分类。只保留你的目标语言。一个被判定为英语但置信度低于 0.8 的文档，大概率并不是干净的英语文本。
 
-**Quality filtering:** This is where it gets interesting. RefinedWeb (the dataset behind Falcon) uses a perplexity-based filter: train a small language model on Wikipedia, then score each document. High perplexity means the document is unlike Wikipedia -- likely spam, keyword lists, or machine-generated content. Documents with perplexity above a threshold get removed.
+**质量过滤（Quality filtering）：** 这里开始变得有意思了。RefinedWeb（Falcon 背后的数据集）使用基于困惑度（perplexity）的过滤器：先在 Wikipedia 上训练一个小语言模型，再给每个文档打分。高困惑度意味着文档不像 Wikipedia——很可能是垃圾内容、关键词列表或机器生成内容。困惑度高于阈值的文档会被移除。
 
-**Deduplication:** The single most impactful cleaning step. Common Crawl contains enormous numbers of duplicated pages -- legal disclaimers, cookie notices, terms of service. Training on duplicates wastes compute and can cause the model to memorize and regurgitate specific passages verbatim.
+**去重（Deduplication）：** 这是影响最大的单一步骤。Common Crawl 中存在海量重复页面——法律免责声明、cookie 提示、服务条款。对重复内容训练既浪费算力，也会导致模型逐字记忆并复述特定段落。
 
-**PII removal:** Names, email addresses, phone numbers, social security numbers. Regex-based detection for structured PII, NER models for names in context.
+**PII 移除（PII removal）：** 包括姓名、电子邮箱地址、电话号码、社会安全号码。结构化 PII 可用正则表达式检测，语境中的姓名则可用 NER 模型识别。
 
-### Deduplication with MinHash
+### 用 MinHash 去重
 
-Exact deduplication is easy: hash each document, remove duplicates. But near-duplicates are the real problem. Two copies of the same news article with slightly different ads around it are near-duplicates. The content is 95% identical, but byte-for-byte they differ.
+精确去重很容易：给每个文档做哈希，删除重复项。但真正的问题是近重复。两篇相同新闻文章，只是周围广告略有不同，它们就是近重复。内容有 95% 相同，但按字节比较又并不一致。
 
-MinHash + Locality-Sensitive Hashing (LSH) solves this efficiently.
+MinHash + 局部敏感哈希（Locality-Sensitive Hashing，LSH）可以高效解决这个问题。
 
 ```mermaid
 graph LR
-    A[Document] --> B[Shingling]
-    B --> C[MinHash Signature]
-    C --> D[LSH Buckets]
-    D --> E[Candidate Pairs]
-    E --> F[Jaccard Similarity]
-    F --> G[Deduplicated Set]
+    A[文档] --> B[分片]
+    B --> C[MinHash 签名]
+    C --> D[LSH 桶]
+    D --> E[候选对]
+    E --> F[Jaccard 相似度]
+    F --> G[去重后的集合]
 
     style A fill:#1a1a2e,stroke:#e94560,color:#fff
     style B fill:#1a1a2e,stroke:#e94560,color:#fff
@@ -114,36 +114,36 @@ graph LR
     style G fill:#1a1a2e,stroke:#e94560,color:#fff
 ```
 
-The idea:
+思路如下：
 
-1. **Shingling:** Convert each document into a set of n-grams (e.g., 5-grams of words or characters). "the quick brown fox" with 3-word shingles becomes {"the quick brown", "quick brown fox"}.
+1. **分片（Shingling）：** 把每个文档转换为 n-gram 集合（例如单词或字符的 5-gram）。`"the quick brown fox"` 在按 3 个词做 shingle 时，会变成 {"the quick brown", "quick brown fox"}。
 
-2. **MinHash:** For each document's shingle set, compute k hash values. Each hash value is the minimum hash across all shingles under a different hash function. This creates a fixed-size "signature" that approximates the Jaccard similarity between any two documents.
+2. **MinHash：** 对每个文档的 shingle 集合，计算 k 个哈希值。每个哈希值都是在不同哈希函数下，所有 shingle 的最小哈希值。这会形成一个固定大小的“签名”，用来近似任意两个文档之间的 Jaccard 相似度。
 
-3. **LSH:** Group documents into buckets based on bands of their MinHash signature. Documents in the same bucket are candidate near-duplicates. This avoids comparing every pair -- you only compare candidates.
+3. **LSH：** 按 MinHash 签名的多个频带（bands）将文档分桶。落在同一桶中的文档就是候选近重复项。这样就不用比较所有文档对——只比较候选项即可。
 
-4. **Verify:** For each candidate pair, compute exact Jaccard similarity. Remove one copy if similarity exceeds a threshold (typically 0.8).
+4. **验证（Verify）：** 对每个候选对计算精确的 Jaccard 相似度。如果相似度超过阈值（通常是 0.8），就移除其中一个副本。
 
-The Llama team reported removing approximately 38% of their web data through deduplication. That is not a small number. More than a third of Common Crawl is duplicate or near-duplicate content.
+Llama 团队报告称，他们通过去重大约删除了 38% 的网页数据。这不是一个小数字。超过三分之一的 Common Crawl 都是重复或近重复内容。
 
-### Sequence Packing
+### 序列打包
 
-Your model expects fixed-length input sequences. Your documents are variable length. Some are 50 tokens. Some are 50,000 tokens.
+你的模型期望输入是固定长度序列。你的文档长度却是可变的。有些只有 50 个词元，有些却有 50,000 个词元。
 
-Naive approach: pad every document to the maximum sequence length. This wastes enormous compute on padding tokens that contribute nothing to learning.
+朴素做法：把每个文档都填充到最大序列长度。这样会在填充词元（padding tokens）上浪费大量算力，而这些词元对学习没有任何贡献。
 
-Better approach: pack multiple documents into a single sequence, separated by end-of-sequence tokens. A 2048-token sequence might contain three short documents concatenated with [EOS] tokens between them.
+更好的做法：把多个文档打包进同一个序列，中间用序列结束词元（end-of-sequence token）分隔。一个 2048 词元的序列，可能包含三篇较短文档，并在它们之间插入 `[EOS]` 词元。
 
 ```mermaid
 graph TD
-    subgraph Naive Packing
-        A1["Doc A (200 tokens)"] --> P1["[PAD] x 1848"]
-        A2["Doc B (500 tokens)"] --> P2["[PAD] x 1548"]
-        A3["Doc C (100 tokens)"] --> P3["[PAD] x 1948"]
+    subgraph 朴素打包
+        A1["文档 A（200 词元）"] --> P1["[PAD] x 1848"]
+        A2["文档 B（500 词元）"] --> P2["[PAD] x 1548"]
+        A3["文档 C（100 词元）"] --> P3["[PAD] x 1948"]
     end
 
-    subgraph Efficient Packing
-        B1["Doc A (200) | Doc B (500) | Doc C (100) | Doc D (400) | Doc E (848)"]
+    subgraph 高效打包
+        B1["文档 A（200 词元） | 文档 B（500 词元） | 文档 C（100 词元） | 文档 D（400 词元） | 文档 E（848 词元）"]
     end
 
     style A1 fill:#1a1a2e,stroke:#e94560,color:#fff
@@ -155,35 +155,35 @@ graph TD
     style B1 fill:#1a1a2e,stroke:#16c784,color:#fff
 ```
 
-The attention mask must be set correctly. Tokens from Document A should not attend to tokens from Document B within the same packed sequence. This requires a block-diagonal attention mask.
+注意力掩码必须设置正确。同一个打包序列中，文档 A 的词元不应当关注到文档 B 的词元。这就需要块对角（block-diagonal）的注意力掩码（attention mask）。
 
-Long documents get truncated or split into chunks at sequence boundaries. The split point matters: splitting mid-sentence forces the model to see incomplete thoughts. Some pipelines align splits to paragraph or sentence boundaries when possible.
+长文档会在序列边界处被截断或切分成多个块。切分点很重要：如果在句子中间切开，模型看到的就是不完整的思想。有些管道会在可能的情况下，把切分点对齐到段落或句子边界。
 
-### The Chinchilla Scaling Law
+### Chinchilla 缩放定律
 
-For a fixed compute budget C (measured in FLOPs), the optimal model size N and dataset size D follow:
+对于固定的计算预算 C（以 FLOPs 衡量），最优模型大小 N 和数据集大小 D 满足：
 
 ```
 N_opt ~ C^0.5
 D_opt ~ C^0.5
 ```
 
-In practice, this means you should scale model size and dataset size roughly equally. A model with 10x more parameters needs roughly 10x more training tokens to reach the same loss.
+在实践中，这意味着你应该大致等比例地扩展模型大小和数据集大小。参数量增加 10 倍的模型，大约也需要增加 10 倍训练词元，才能达到相同的损失（loss）。
 
-| Model | Parameters | Training Tokens | Chinchilla-Optimal? |
+| 模型 | 参数量 | 训练词元数 | 是否符合 Chinchilla 最优？ |
 |-------|-----------|----------------|-------------------|
-| GPT-3 | 175B | 300B | No (undertrained 3-4x) |
-| Chinchilla | 70B | 1.4T | Yes (by design) |
-| Llama 2 | 70B | 2T | Overtrained (intentionally) |
-| Llama 3 | 70B | 15T | Heavily overtrained |
+| GPT-3 | 175B | 300B | 否（训练不足 3-4 倍） |
+| Chinchilla | 70B | 1.4T | 是（设计即如此） |
+| Llama 2 | 70B | 2T | 过度训练（有意为之） |
+| Llama 3 | 70B | 15T | 严重过度训练 |
 
-Llama 3 deliberately violates the Chinchilla law. Meta found that overtraining on more data -- far beyond the compute-optimal ratio -- produces better models for inference. The extra training cost is paid once, but the smaller model is cheaper to serve forever. This is sometimes called the "inference-optimal" scaling approach, and it has become the industry standard since 2024.
+Llama 3 是有意违背 Chinchilla 定律的。Meta 发现，在远超计算最优比例的更多数据上继续训练，能得到更适合推理的模型。额外训练成本只需支付一次，但更小的模型会在后续服务阶段永久更便宜。这有时被称为“推理最优（inference-optimal）”缩放方法，并自 2024 年起成为行业标准。
 
-## Build It
+## 动手构建
 
-### Step 1: Text Cleaning
+### 第 1 步：文本清洗
 
-Strip HTML, normalize whitespace, remove non-text content. We will use a public domain text (Project Gutenberg) as our small corpus.
+剥离 HTML、归一化空白字符、移除非文本内容。我们将使用公共领域文本（Project Gutenberg）作为小型语料库（corpus）。
 
 ```python
 import re
@@ -209,11 +209,11 @@ def quality_filter(text, min_words=50, max_ratio_caps=0.3, max_ratio_special=0.1
     return True
 ```
 
-The quality filter catches SEO spam (ALL CAPS), machine-generated noise (high special character ratio), and stub pages (too short). These three checks alone remove a surprising amount of garbage from web crawls.
+这个质量过滤器能抓住 SEO 垃圾（全大写）、机器生成噪声（特殊字符占比高）以及占位页面（太短）。仅这三项检查，就足以从网页抓取数据中清掉多得惊人的垃圾。
 
-### Step 2: MinHash Deduplication
+### 第 2 步：MinHash 去重
 
-Implement MinHash from scratch. No external libraries required -- just `hashlib`.
+从零实现 MinHash。不需要任何外部库——只用 `hashlib`。
 
 ```python
 import hashlib
@@ -280,11 +280,11 @@ def deduplicate(documents, threshold=0.8, num_hashes=128, bands=16):
     return [doc for idx, doc in enumerate(documents) if idx not in removed], len(removed)
 ```
 
-The `num_hashes=128` and `bands=16` parameters control the precision-recall tradeoff. More hashes give more accurate similarity estimates. More bands increase recall (catch more duplicates) at the cost of more false positives. These values work well for typical web text.
+`num_hashes=128` 和 `bands=16` 这两个参数控制精确率-召回率权衡。更多哈希值会带来更准确的相似度估计。更多频带（band）会提高召回率（抓到更多重复项），但代价是误报更多。对于典型网页文本，这组值效果不错。
 
-### Step 3: Tokenize and Pack Sequences
+### 第 3 步：分词并打包序列
 
-Take the clean, deduplicated text, tokenize it, and pack into fixed-length sequences for training.
+把清洗并去重后的文本做分词，然后打包成训练所需的固定长度序列。
 
 ```python
 def tokenize_corpus(documents, tokenizer):
@@ -310,9 +310,9 @@ def pack_sequences(token_ids, seq_length, pad_id=0):
     return sequences, attention_masks
 ```
 
-### Step 4: DataLoader for Training
+### 第 4 步：训练用数据加载器（DataLoader）
 
-Yield randomized batches of packed sequences. This is what the training loop consumes.
+产出随机化批次的打包序列。这正是训练循环要消费的数据。
 
 ```python
 import random
@@ -338,9 +338,9 @@ class PreTrainingDataLoader:
             yield batch_seqs, batch_masks
 ```
 
-### Step 5: Dataset Statistics
+### 第 5 步：数据集统计
 
-Compute the numbers that matter: total tokens, unique tokens, compression ratio, document length distribution.
+计算真正重要的指标：总词元数、唯一词元数、压缩率、文档长度分布。
 
 ```python
 from collections import Counter
@@ -380,15 +380,15 @@ def compute_statistics(documents, token_ids, sequences, tokenizer_vocab_size):
     return stats
 ```
 
-Compression ratio tells you how efficient the tokenizer is on this corpus. English text typically compresses to about 3-4 characters per token. If you see 1.5 characters per token, your tokenizer is splitting too aggressively. If you see 8+, it has learned very domain-specific merges.
+压缩率告诉你，这个分词器在当前语料上的效率如何。英语文本通常会压缩到大约每个词元 3-4 个字符。如果你看到每个词元只有 1.5 个字符，说明分词器切得太碎了。如果你看到 8+，说明它学到了非常特定领域的合并规则（merge）。
 
-Sequence utilization tells you how much of your packed sequences is real data versus padding. Below 90% means your packing is inefficient -- you are wasting compute on padding tokens.
+序列利用率告诉你，打包后的序列里有多少是真实数据，多少是填充。低于 90% 就意味着你的打包效率不高——你在填充词元上浪费算力。
 
-## Use It
+## 使用它
 
-### Compare With HuggingFace Datasets
+### 与 HuggingFace Datasets 对比
 
-Load the same corpus through HuggingFace's datasets library and compare the pipeline speed.
+通过 HuggingFace 的 datasets 库加载同一份语料，并比较管道速度。
 
 ```python
 from datasets import load_dataset
@@ -410,38 +410,38 @@ total_tokens = sum(len(t) for t in tokenized["input_ids"])
 print(f"HuggingFace: {total_tokens:,} tokens in {hf_time:.2f}s ({total_tokens/hf_time:,.0f} tokens/sec)")
 ```
 
-The HuggingFace pipeline uses Rust tokenizers under the hood and parallel processing across 4 cores. Your pure Python pipeline will be 10-50x slower. That gap is why production teams use compiled tokenizers. The algorithm is the same. The implementation language is the difference.
+HuggingFace 管道底层使用 Rust 分词器（tokenizer），并在 4 个 CPU 核心上并行处理。你用纯 Python 写的管道会慢 10-50 倍。这个差距就是为什么生产团队会使用编译型分词器。算法是一样的，差别在实现语言。
 
-## Ship It
+## 交付它
 
-This lesson produces a prompt for validating and debugging data quality in LLM training pipelines. See `outputs/prompt-data-quality-checker.md`.
+本课会产出一个用于验证和调试 LLM 训练管道中数据质量的提示词。参见 `outputs/prompt-data-quality-checker.md`。
 
-## Exercises
+## 练习
 
-1. **Easy:** Add language detection to the cleaning pipeline using a simple heuristic (character set analysis). Filter to only English documents and measure how many documents get removed.
-2. **Medium:** Implement exact deduplication using SHA-256 hashes alongside the MinHash near-deduplication. Compare the number of duplicates caught by each method on a web-scraped corpus.
-3. **Hard:** Build a perplexity-based quality filter. Train a small bigram language model on Wikipedia text, score each document by perplexity, and remove the bottom 20%. Compare model output quality when training on filtered vs unfiltered data.
+1. **简单：** 使用一个简单启发式方法（字符集分析）为清洗管道加入语言检测。只保留英文文档，并测量会移除多少文档。
+2. **中等：** 在 MinHash 近重复检测之外，再使用 SHA-256 哈希实现精确去重。对一个网页抓取得到的语料，对比两种方法分别捕获了多少重复项。
+3. **困难：** 构建基于困惑度的质量过滤器。在 Wikipedia 文本上训练一个小型二元（bigram）语言模型，用困惑度给每个文档打分，并移除分数最低的 20%。比较在过滤数据与未过滤数据上训练时的模型输出质量。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们常说什么 | 它真正的意思 |
 |------|----------------|----------------------|
-| Common Crawl | "The internet" | A non-profit that crawls the web monthly -- ~250TB raw, the starting point for most LLM training data |
-| MinHash | "Some hashing trick" | A technique to estimate Jaccard similarity between sets using fixed-size signatures -- enables near-duplicate detection at scale |
-| LSH | "Locality-Sensitive Hashing" | A method to group similar items into the same bucket -- reduces pairwise comparisons from O(n^2) to near-linear |
-| Sequence packing | "Concatenating documents" | Fitting multiple documents into fixed-length sequences with proper attention masks -- eliminates padding waste |
-| Chinchilla scaling | "Train on more data" | For a fixed compute budget, optimal performance requires scaling model size and training tokens roughly equally |
-| Fertility | "Tokens per word" | Average number of tokens per word -- 1.3 for English in GPT-4, higher for non-Latin scripts |
-| Data mixing | "Choosing training data" | The ratio of code vs text vs math vs multilingual data -- no formula, requires experimentation |
-| Perplexity filter | "Quality scoring" | Use a small language model to score documents -- high perplexity means the text is unlike clean reference data |
-| Deduplication | "Removing copies" | Eliminating exact and near-duplicate documents -- typically removes 30-40% of raw web data |
-| Attention mask | "Which tokens to look at" | A binary mask that prevents attention across document boundaries in packed sequences |
+| Common Crawl | “整个互联网” | 一个每月抓取网页的非营利项目——原始数据约 250TB，是大多数 LLM 训练数据的起点 |
+| MinHash | “某种哈希技巧” | 一种用固定大小签名估计集合间 Jaccard 相似度的技术——支持大规模近重复检测 |
+| LSH | “局部敏感哈希” | 一种把相似项分到同一桶中的方法——将两两比较从 O(n^2) 降到接近线性 |
+| 序列打包（Sequence packing） | “把文档拼起来” | 在正确注意力掩码的配合下，把多个文档装进固定长度序列——消除填充浪费 |
+| Chinchilla 缩放（Chinchilla scaling） | “用更多数据训练” | 在固定计算预算下，最优性能要求模型大小与训练词元数大致等比例扩展 |
+| 词元生育度（Fertility） | “每个词对应多少词元” | 每个词平均分成多少词元——GPT-4 的英语约为 1.3，非拉丁文字脚本通常更高 |
+| 数据混合（Data mixing） | “选择训练数据” | 代码、文本、数学、多语言数据之间的比例——没有公式，只能实验 |
+| 困惑度过滤器（Perplexity filter） | “质量打分” | 用一个小语言模型给文档打分——高困惑度意味着文本不像干净的参考数据 |
+| 去重（Deduplication） | “去掉副本” | 去除完全重复和近重复文档——通常能移除 30-40% 的原始网页数据 |
+| 注意力掩码（Attention mask） | “该看哪些词元” | 一种二值掩码，用于阻止打包序列中跨文档边界的注意力 |
 
-## Further Reading
+## 延伸阅读
 
-- [Hoffmann et al., 2022 -- Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) -- the paper that changed how we think about data scale
-- [Penedo et al., 2023 -- The RefinedWeb Dataset for Falcon LLM](https://arxiv.org/abs/2306.01116) -- how to filter Common Crawl to high quality
-- [Touvron et al., 2023 -- Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288) -- data pipeline details for Llama 2
-- [Lee et al., 2022 -- Deduplicating Training Data Makes Language Models Better](https://arxiv.org/abs/2107.06499) -- why deduplication matters more than you think
-- [Broder, 1997 -- On the Resemblance and Containment of Documents](https://ieeexplore.ieee.org/document/666900) -- the original MinHash paper
-- [Meta, 2024 -- Llama 3 Technical Report](https://arxiv.org/abs/2407.21783) -- 15.6T tokens, data mixing ratios, filtering pipeline
+- [Hoffmann et al., 2022 -- Training Compute-Optimal Large Language Models (Chinchilla)](https://arxiv.org/abs/2203.15556) -- 改变我们理解数据规模方式的论文
+- [Penedo et al., 2023 -- The RefinedWeb Dataset for Falcon LLM](https://arxiv.org/abs/2306.01116) -- 如何把 Common Crawl 过滤为高质量数据
+- [Touvron et al., 2023 -- Llama 2: Open Foundation and Fine-Tuned Chat Models](https://arxiv.org/abs/2307.09288) -- Llama 2 的数据管道细节
+- [Lee et al., 2022 -- Deduplicating Training Data Makes Language Models Better](https://arxiv.org/abs/2107.06499) -- 为什么去重比你想的更重要
+- [Broder, 1997 -- On the Resemblance and Containment of Documents](https://ieeexplore.ieee.org/document/666900) -- 最初的 MinHash 论文
+- [Meta, 2024 -- Llama 3 Technical Report](https://arxiv.org/abs/2407.21783) -- 15.6T 词元、数据混合比例和过滤流程

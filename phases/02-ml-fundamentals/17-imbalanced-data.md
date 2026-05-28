@@ -1,219 +1,219 @@
-# Handling Imbalanced Data
+# 处理类别不平衡数据（Imbalanced Data）
 
-> When 99% of your data is "normal," accuracy is a lie.
+> 当你 99% 的数据都是“正常”时，准确率就是个谎言。
 
-**Type:** Build
-**Language:** Python
-**Prerequisites:** Phase 2, Lessons 01-09 (especially evaluation metrics)
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python
+**前置要求：** 第 2 阶段，第 01-09 课（尤其是评估指标）
+**时间：** 约 90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Implement SMOTE from scratch and explain how synthetic oversampling differs from random duplication
-- Evaluate imbalanced classifiers using F1, AUPRC, and Matthews Correlation Coefficient instead of accuracy
-- Compare class weighting, threshold tuning, and resampling strategies and select the right approach for a given imbalance ratio
-- Build a complete imbalanced data pipeline that combines SMOTE, class weights, and threshold optimization
+- 从零实现 SMOTE（Synthetic Minority Oversampling Technique），并解释合成过采样与随机复制的区别
+- 使用 F1、AUPRC 和马修斯相关系数（Matthews Correlation Coefficient）而不是准确率来评估类别不平衡分类器
+- 比较类别加权（class weighting）、阈值调优（threshold tuning）和重采样策略，并为给定的不平衡比例选择合适方法
+- 构建一个完整的类别不平衡数据处理流水线，结合 SMOTE、类别权重和阈值优化
 
-## The Problem
+## 问题
 
-You build a fraud detection model. It gets 99.9% accuracy. You celebrate. Then you realize it predicts "not fraud" for every single transaction.
+你做了一个欺诈检测模型。它达到了 99.9% 的准确率。你开始庆祝。然后你意识到，它对每一笔交易都预测“不是欺诈”。
 
-This is not a bug. It is the rational thing to do when only 0.1% of transactions are fraudulent. The model learns that always guessing the majority class minimizes overall error. It is technically correct and completely useless.
+这不是程序错误（bug）。当只有 0.1% 的交易是欺诈时，这其实是模型最“理性”的做法。模型学到的是：永远猜多数类，能够让总体错误最小。它在技术上没错，但在实际中完全没用。
 
-This happens everywhere real classification matters. Disease diagnosis: 1% positive rate. Network intrusion: 0.01% attacks. Manufacturing defects: 0.5% defective. Spam filtering: 20% spam. Churn prediction: 5% churners. The more consequential the minority class, the rarer it tends to be.
+只要真正重要的是分类，这种情况就无处不在。疾病诊断：1% 阳性率。网络入侵：0.01% 攻击。制造缺陷：0.5% 次品。垃圾邮件过滤：20% 垃圾邮件。流失预测：5% 流失用户。少数类越重要，它往往就越稀少。
 
-Accuracy fails because it treats all correct predictions equally. Correctly labeling a legitimate transaction and correctly catching fraud both count as one point of accuracy. But catching fraud is the entire reason the model exists. We need metrics, techniques, and training strategies that force the model to pay attention to the rare but important class.
+准确率会失效，因为它把所有正确预测一视同仁。正确标记一笔正常交易和正确抓到一次欺诈，在准确率里都只算 1 分。但抓到欺诈才是这个模型存在的全部意义。我们需要能迫使模型关注稀有但重要类别的指标、技术和训练策略。
 
-## The Concept
+## 概念
 
-### Why Accuracy Fails
+### 为什么准确率会失效
 
-Consider a dataset with 1000 samples: 990 negative, 10 positive. A model that always predicts negative:
+考虑一个有 1000 个样本的数据集：990 个负类，10 个正类。一个永远预测负类的模型会得到：
 
-|  | Predicted Positive | Predicted Negative |
+|  | 预测为正类 | 预测为负类 |
 |--|---|---|
-| Actually Positive | 0 (TP) | 10 (FN) |
-| Actually Negative | 0 (FP) | 990 (TN) |
+| 实际为正类 | 0 (TP) | 10 (FN) |
+| 实际为负类 | 0 (FP) | 990 (TN) |
 
-Accuracy = (0 + 990) / 1000 = 99.0%
+准确率 = (0 + 990) / 1000 = 99.0%
 
-The model catches zero fraud. Zero disease. Zero defects. But accuracy says 99%. This is why accuracy is dangerous for imbalanced problems.
+这个模型一个欺诈都抓不到。一个疾病都诊断不出。一个缺陷都发现不了。但准确率却说它有 99%。这就是为什么在不平衡问题上，准确率很危险。
 
-### Better Metrics
+### 更好的指标
 
-**Precision** = TP / (TP + FP). Of everything flagged as positive, how many actually are? High precision means few false alarms.
+**精确率（Precision）** = TP / (TP + FP)。在所有被标记为正类的样本里，真正为正的有多少？精确率高意味着误报少。
 
-**Recall** = TP / (TP + FN). Of everything actually positive, how many did we catch? High recall means few missed positives.
+**召回率（Recall）** = TP / (TP + FN)。在所有真实为正类的样本里，我们抓到了多少？召回率高意味着漏报少。
 
-**F1 Score** = 2 * precision * recall / (precision + recall). The harmonic mean. Penalizes extreme imbalance between precision and recall more than the arithmetic mean would.
+**F1 分数（F1 Score）** = 2 * precision * recall / (precision + recall)。它是调和平均数。与算术平均数相比，它会更严厉地惩罚精确率和召回率之间的极端失衡。
 
-**F-beta Score** = (1 + beta^2) * precision * recall / (beta^2 * precision + recall). When beta > 1, recall matters more. When beta &lt; 1, precision matters more. F2 is common in fraud detection (missing fraud is worse than a false alarm).
+**F-beta 分数（F-beta Score）** = (1 + beta^2) * precision * recall / (beta^2 * precision + recall)。当 beta > 1 时，召回率更重要；当 beta &lt; 1 时，精确率更重要。F2 在欺诈检测中很常见（漏掉欺诈比误报更糟）。
 
-**AUPRC** (Area Under Precision-Recall Curve). Like AUC-ROC but more informative for imbalanced data. A random classifier has AUPRC equal to the positive class rate (not 0.5 like ROC). This makes improvements easier to see.
+**AUPRC**（Precision-Recall 曲线下面积，Area Under Precision-Recall Curve）。它类似 AUC-ROC，但对不平衡数据更有信息量。随机分类器的 AUPRC 等于正类比例（不像 ROC 那样是 0.5）。这让改进更容易看出来。
 
-**Matthews Correlation Coefficient** = (TP * TN - FP * FN) / sqrt((TP+FP)(TP+FN)(TN+FP)(TN+FN)). Ranges from -1 to +1. Only gives a high score when the model does well on both classes. Balanced even when classes are very different sizes.
+**马修斯相关系数（Matthews Correlation Coefficient, MCC）** = (TP * TN - FP * FN) / sqrt((TP+FP)(TP+FN)(TN+FP)(TN+FN))。取值范围是 -1 到 +1。只有当模型在两个类别上都表现良好时，它才会得到高分。即使类别规模差异很大，它也依然保持平衡。
 
-For the "always predict negative" model above: precision = 0/0 (undefined, often set to 0), recall = 0/10 = 0, F1 = 0, MCC = 0. These metrics correctly identify the model as worthless.
+对于上面那个“永远预测负类”的模型：precision = 0/0（未定义，通常记为 0），recall = 0/10 = 0，F1 = 0，MCC = 0。这些指标才正确地指出：这个模型毫无价值。
 
-### The Imbalanced Data Pipeline
+### 类别不平衡数据处理流水线
 
 ```mermaid
 flowchart TD
-    A[Imbalanced Dataset] --> B{Imbalance Ratio?}
-    B -->|Mild: 80/20| C[Class Weights]
-    B -->|Moderate: 95/5| D[SMOTE + Threshold Tuning]
-    B -->|Severe: 99/1| E[SMOTE + Class Weights + Threshold]
-    C --> F[Train Model]
+    A[不平衡数据集] --> B{不平衡比例？}
+    B -->|轻度：80/20| C[类别权重]
+    B -->|中度：95/5| D[SMOTE + 阈值调优]
+    B -->|严重：99/1| E[SMOTE + 类别权重 + 阈值]
+    C --> F[训练模型]
     D --> F
     E --> F
-    F --> G[Evaluate with F1 / AUPRC / MCC]
-    G --> H{Good Enough?}
-    H -->|No| I[Try Different Strategy]
-    H -->|Yes| J[Deploy with Monitoring]
+    F --> G[使用 F1 / AUPRC / MCC 评估]
+    G --> H{足够好吗？}
+    H -->|否| I[尝试不同策略]
+    H -->|是| J[带监控部署]
     I --> B
 ```
 
-### SMOTE: Synthetic Minority Oversampling Technique
+### SMOTE：合成少数类过采样技术
 
-Random oversampling duplicates existing minority samples. This works but risks overfitting because the model sees identical points repeatedly.
+随机过采样（random oversampling）会复制已有的少数类样本。这样确实有效，但也有过拟合风险，因为模型会反复看到完全相同的点。
 
-SMOTE creates new synthetic minority samples that are plausible but not copies. The algorithm:
+SMOTE 会创建新的、合理的合成少数类样本，而不是简单复制。算法如下：
 
-1. For each minority sample x, find its k nearest neighbors among other minority samples
-2. Pick one neighbor at random
-3. Create a new sample on the line segment between x and that neighbor
+1. 对每个少数类样本 x，在其他少数类样本中找到它的 k 个最近邻（k nearest neighbors, k-NN）
+2. 随机挑选一个邻居
+3. 在线段 x 与该邻居之间生成一个新样本
 
-The formula: `new_sample = x + random(0, 1) * (neighbor - x)`
+公式是：`new_sample = x + random(0, 1) * (neighbor - x)`
 
-This interpolates between real minority points, creating samples in the same region of feature space without just copying existing data.
+这相当于在真实少数类点之间做插值，在同一片特征空间区域里生成新样本，而不是简单复制现有数据。
 
 ```mermaid
 flowchart LR
-    subgraph Original["Original Minority Points"]
+    subgraph Original["原始少数类样本点"]
         P1["x1 (1.0, 2.0)"]
         P2["x2 (1.5, 2.5)"]
         P3["x3 (2.0, 1.5)"]
     end
-    subgraph SMOTE["SMOTE Generation"]
+    subgraph SMOTE["SMOTE 生成过程"]
         direction TB
-        S1["Pick x1, neighbor x2"]
-        S2["random t = 0.4"]
+        S1["选择 x1，邻居 x2"]
+        S2["随机 t = 0.4"]
         S3["new = x1 + 0.4*(x2-x1)"]
         S4["new = (1.2, 2.2)"]
         S1 --> S2 --> S3 --> S4
     end
     Original --> SMOTE
-    subgraph Result["Augmented Set"]
+    subgraph Result["扩增后的集合"]
         R1["x1 (1.0, 2.0)"]
         R2["x2 (1.5, 2.5)"]
         R3["x3 (2.0, 1.5)"]
-        R4["synthetic (1.2, 2.2)"]
+        R4["合成样本 (1.2, 2.2)"]
     end
     SMOTE --> Result
 ```
 
-### Sampling Strategies Compared
+### 采样策略对比
 
-**Random Oversampling**: duplicate minority samples to match majority count.
-- Pros: simple, no information loss
-- Cons: exact duplicates cause overfitting, increases training time
+**随机过采样**：复制少数类样本，使其数量与多数类一致。
+- 优点：简单，不会丢失信息
+- 缺点：精确重复会导致过拟合，并增加训练时间
 
-**Random Undersampling**: remove majority samples to match minority count.
-- Pros: fast training, simple
-- Cons: throws away potentially useful majority data, higher variance
+**随机欠采样（random undersampling）**：删除多数类样本，使其数量与少数类一致。
+- 优点：训练快，简单
+- 缺点：会丢掉可能有用的多数类数据，方差更高
 
-**SMOTE**: create synthetic minority samples via interpolation.
-- Pros: generates new data points, reduces overfitting compared to random oversampling
-- Cons: can create noisy samples near the decision boundary, does not account for majority class distribution
+**SMOTE**：通过插值生成合成少数类样本。
+- 优点：生成新的数据点，相比随机过采样更不容易过拟合
+- 缺点：可能会在决策边界附近生成噪声样本，也没有考虑多数类分布
 
-| Strategy | Data Changed | Risk | When to Use |
+| 策略 | 数据变化 | 风险 | 适用场景 |
 |----------|-------------|------|-------------|
-| Oversample | Minority duplicated | Overfitting | Small datasets, moderate imbalance |
-| Undersample | Majority removed | Information loss | Large datasets, want fast training |
-| SMOTE | Synthetic minority added | Boundary noise | Moderate imbalance, enough minority samples for k-NN |
+| 过采样 | 复制少数类 | 过拟合 | 小数据集、中度不平衡 |
+| 欠采样 | 删除多数类 | 信息损失 | 大数据集、希望快速训练 |
+| SMOTE | 增加合成少数类 | 边界噪声 | 中度不平衡，且少数类样本足够做 k 最近邻 |
 
-### Class Weights
+### 类别权重（Class Weights）
 
-Instead of changing the data, change how the model treats errors. Assign higher weight to misclassifying the minority class.
+与其改动数据，不如改动模型看待错误的方式。给少数类误分类分配更高权重。
 
-For a binary problem with 950 negative and 50 positive samples:
-- Weight for negative class = n_samples / (2 * n_negative) = 1000 / (2 * 950) = 0.526
-- Weight for positive class = n_samples / (2 * n_positive) = 1000 / (2 * 50) = 10.0
+对于一个有 950 个负类样本和 50 个正类样本的二分类问题：
+- 负类权重 = n_samples / (2 * n_negative) = 1000 / (2 * 950) = 0.526
+- 正类权重 = n_samples / (2 * n_positive) = 1000 / (2 * 50) = 10.0
 
-The positive class gets 19x the weight. Misclassifying one positive sample costs as much as misclassifying 19 negative samples. The model is forced to pay attention to the minority class.
+正类获得了 19 倍的权重。错分 1 个正类样本，代价相当于错分 19 个负类样本。模型因此被迫关注少数类。
 
-In logistic regression, this modifies the loss function:
+在逻辑回归（logistic regression）中，这会修改损失函数：
 
 ```
 weighted_loss = -sum(w_i * [y_i * log(p_i) + (1-y_i) * log(1-p_i)])
 ```
 
-where w_i depends on the class of sample i.
+其中，w_i 取决于样本 i 所属的类别。
 
-Class weights are mathematically equivalent to oversampling in expectation, but without creating new data points. This makes them faster and avoids the overfitting risk of duplicated samples.
+从期望意义上说，类别权重与过采样在数学上是等价的，但它不需要创建新数据点。因此它更快，也能避免重复样本带来的过拟合风险。
 
-### Threshold Tuning
+### 阈值调优（Threshold Tuning）
 
-Most classifiers output a probability. The default threshold is 0.5: if P(positive) >= 0.5, predict positive. But 0.5 is arbitrary. When classes are imbalanced, the optimal threshold is usually much lower.
+大多数分类器都会输出一个概率。默认阈值是 0.5：如果 P(positive) >= 0.5，就预测为正类。但 0.5 其实是任意设定的。当类别不平衡时，最优阈值通常会低得多。
 
-The process:
-1. Train a model
-2. Get predicted probabilities on the validation set
-3. Sweep thresholds from 0.0 to 1.0
-4. Compute F1 (or your chosen metric) at each threshold
-5. Pick the threshold that maximizes your metric
+流程如下：
+1. 训练一个模型
+2. 在验证集上拿到预测概率
+3. 将阈值从 0.0 扫到 1.0
+4. 在每个阈值下计算 F1（或你选择的指标）
+5. 选出让指标最大的阈值
 
 ```mermaid
 flowchart LR
-    A[Model] --> B[Predict Probabilities]
-    B --> C[Sweep Thresholds 0.0 to 1.0]
-    C --> D[Compute F1 at Each]
-    D --> E[Pick Best Threshold]
-    E --> F[Use in Production]
+    A[模型] --> B[预测概率]
+    B --> C[扫描 0.0 到 1.0 的阈值]
+    C --> D[逐个计算 F1]
+    D --> E[选出最佳阈值]
+    E --> F[在线上使用]
 ```
 
-A model might output P(fraud) = 0.15 for a fraudulent transaction. At threshold 0.5, this is classified as not fraud. At threshold 0.10, it is correctly caught. The probability calibration matters less than the ranking -- as long as fraud gets higher probabilities than non-fraud, there exists a threshold that separates them.
+一个模型可能会对某笔欺诈交易输出 P(fraud) = 0.15。在阈值 0.5 下，它会被判成非欺诈；而在阈值 0.10 下，它就能被正确抓住。概率校准的重要性，通常不如排序重要——只要欺诈样本的概率普遍高于非欺诈样本，就一定存在一个阈值能把它们分开。
 
-### Cost-Sensitive Learning
+### 代价敏感学习（Cost-Sensitive Learning）
 
-Generalization of class weights. Instead of uniform costs, assign specific misclassification costs:
+它是类别权重的泛化版本。不再只使用统一代价，而是为不同的误分类指定具体代价：
 
-| | Predict Positive | Predict Negative |
+| | 预测为正类 | 预测为负类 |
 |--|---|---|
-| Actually Positive | 0 (correct) | C_FN = 100 |
-| Actually Negative | C_FP = 1 | 0 (correct) |
+| 实际为正类 | 0（正确） | C_FN = 100 |
+| 实际为负类 | C_FP = 1 | 0（正确） |
 
-Missing a fraudulent transaction (FN) costs 100x more than a false alarm (FP). The model optimizes for total cost, not total error count.
+漏掉一笔欺诈交易（FN）的代价，是一次误报（FP）的 100 倍。模型优化的目标因此变成总成本，而不是总错误数。
 
-This is the most principled approach when you can estimate real-world costs. A missed cancer diagnosis has a very different cost than a false alarm that leads to an extra biopsy. Making these costs explicit forces the right tradeoffs.
+当你能够估计真实世界代价时，这是最有原则的方法。漏诊癌症的代价，和一次导致额外活检的误报，完全不是一回事。把这些代价明确写出来，才能逼迫模型做出正确的权衡。
 
-### Decision Flowchart
+### 决策流程图
 
 ```mermaid
 flowchart TD
-    A[Start: Imbalanced Dataset] --> B{How imbalanced?}
-    B -->|"< 70/30"| C["Mild: try class weights first"]
-    B -->|"70/30 to 95/5"| D["Moderate: SMOTE + class weights"]
-    B -->|"> 95/5"| E["Severe: combine multiple strategies"]
-    C --> F{Enough data?}
+    A[开始：不平衡数据集] --> B{不平衡程度如何？}
+    B -->|"< 70/30"| C["轻度：先尝试类别权重"]
+    B -->|"70/30 到 95/5"| D["中度：SMOTE + 类别权重"]
+    B -->|"> 95/5"| E["严重：组合多种策略"]
+    C --> F{数据量足够吗？}
     D --> F
     E --> F
-    F -->|"< 1000 samples"| G["Oversample or SMOTE, avoid undersampling"]
-    F -->|"1000-10000"| H["SMOTE + threshold tuning"]
-    F -->|"> 10000"| I["Undersampling OK, or class weights"]
-    G --> J[Train + Evaluate with F1/AUPRC]
+    F -->|"< 1000 个样本"| G["过采样或 SMOTE，避免欠采样"]
+    F -->|"1000-10000"| H["SMOTE + 阈值调优"]
+    F -->|"> 10000"| I["可以欠采样，或使用类别权重"]
+    G --> J[训练 + 用 F1/AUPRC 评估]
     H --> J
     I --> J
-    J --> K{Recall high enough?}
-    K -->|No| L[Lower threshold]
-    K -->|Yes| M{Precision acceptable?}
-    M -->|No| N[Raise threshold or add features]
-    M -->|Yes| O[Ship it]
+    J --> K{召回率足够高吗？}
+    K -->|否| L[降低阈值]
+    K -->|是| M{精确率可以接受吗？}
+    M -->|否| N[提高阈值或增加特征]
+    M -->|是| O[可以上线]
 ```
 
-## Build It
+## 动手实现
 
-### Step 1: Generate an imbalanced dataset
+### 第 1 步：生成一个不平衡数据集
 
 ```python
 import numpy as np
@@ -232,7 +232,7 @@ def make_imbalanced_data(n_majority=950, n_minority=50, seed=42):
     return X[shuffle_idx], y[shuffle_idx]
 ```
 
-### Step 2: SMOTE from scratch
+### 第 2 步：从零实现 SMOTE
 
 ```python
 def euclidean_distance(a, b):
@@ -267,7 +267,7 @@ def smote(X_minority, k=5, n_synthetic=100, seed=42):
     return np.array(synthetic)
 ```
 
-### Step 3: Random oversampling and undersampling
+### 第 3 步：随机过采样与欠采样
 
 ```python
 def random_oversample(X, y, seed=42):
@@ -312,7 +312,7 @@ def random_undersample(X, y, seed=42):
     return X_out[shuffle], y_out[shuffle]
 ```
 
-### Step 4: Logistic regression with class weights
+### 第 4 步：带类别权重的逻辑回归
 
 ```python
 def sigmoid(z):
@@ -349,7 +349,7 @@ def compute_class_weights(y):
     return np.array([weight_map[yi] for yi in y])
 ```
 
-### Step 5: Threshold tuning
+### 第 5 步：阈值调优
 
 ```python
 def find_optimal_threshold(y_true, y_probs, metric="f1"):
@@ -378,7 +378,7 @@ def find_optimal_threshold(y_true, y_probs, metric="f1"):
     return best_threshold, best_score
 ```
 
-### Step 6: Evaluation functions
+### 第 6 步：评估函数
 
 ```python
 def confusion_matrix_values(y_true, y_pred):
@@ -408,7 +408,7 @@ def compute_metrics(y_true, y_pred):
     }
 ```
 
-### Step 7: Compare all approaches
+### 第 7 步：比较所有方法
 
 ```python
 X, y = make_imbalanced_data(950, 50, seed=42)
@@ -455,11 +455,11 @@ best_thresh, best_f1 = find_optimal_threshold(y_val, probs_val, metric="f1")
 preds_thresh = (probs_cw >= best_thresh).astype(int)
 ```
 
-The code file runs all of this in a single script and prints results.
+代码文件会把这些内容放进一个脚本里运行，并打印结果。
 
-## Use It
+## 实际使用
 
-With scikit-learn and imbalanced-learn, these techniques are one-liners:
+使用 scikit-learn 和 imbalanced-learn 时，这些技术几乎都是一行代码：
 
 ```python
 from sklearn.linear_model import LogisticRegression
@@ -489,42 +489,42 @@ pipeline.fit(X_train, y_train)
 print(classification_report(y_test, pipeline.predict(X_test)))
 ```
 
-The from-scratch implementations show exactly what each technique does. SMOTE is just k-NN interpolation on the minority class. Class weights multiply the loss. Threshold tuning is a for-loop over cutoffs. No magic.
+这些从零实现的版本，能精确展示每种技术到底做了什么。SMOTE 本质上只是对少数类做 k-NN 插值。类别权重本质上是在给损失乘权重。阈值调优本质上只是对不同截断值做一层 for 循环（for-loop）。没有魔法。
 
-## Ship It
+## 交付成果
 
-This lesson produces:
-- `outputs/skill-imbalanced-data.md` -- a decision checklist for handling imbalanced classification problems
+本课会产出：
+- `outputs/skill-imbalanced-data.md` -- 一个用于处理不平衡分类问题的决策清单
 
-## Exercises
+## 练习
 
-1. **Borderline-SMOTE**: modify the SMOTE implementation to only generate synthetic samples for minority points that are near the decision boundary (those whose k-nearest neighbors include majority class samples). Compare results with standard SMOTE on a dataset where classes overlap.
+1. **Borderline-SMOTE**：修改 SMOTE 实现，使其只为靠近决策边界的少数类点生成合成样本（也就是其 k 个最近邻中包含多数类样本的点）。在一个类别有重叠的数据集上，把结果与标准 SMOTE 进行比较。
 
-2. **Cost matrix optimization**: implement cost-sensitive learning where the cost matrix is a parameter. Create a function that takes a cost matrix and returns optimal predictions that minimize expected cost. Test with different cost ratios (1:10, 1:100, 1:1000) and plot how the precision-recall tradeoff changes.
+2. **代价矩阵优化（Cost Matrix Optimization）**：实现代价敏感学习，让代价矩阵成为一个参数。创建一个函数，接收代价矩阵并返回能最小化期望代价的最优预测。测试不同的代价比（1:10、1:100、1:1000），并绘制精确率-召回率权衡如何变化。
 
-3. **Threshold calibration**: implement Platt scaling (fit a logistic regression on the model's raw outputs to produce calibrated probabilities). Compare the precision-recall curve before and after calibration. Show that calibration does not change the ranking (AUC stays the same) but makes the probabilities more meaningful.
+3. **阈值校准（Threshold Calibration）**：实现 Platt scaling（在模型原始输出上再拟合一个逻辑回归，以生成校准后的概率）。比较校准前后的精确率-召回率曲线。证明校准不会改变排序（AUC 保持不变），但会让概率本身更有意义。
 
-4. **Ensemble with balanced bagging**: train multiple models, each on a balanced bootstrap sample (all minority + random subset of majority). Average their predictions. Compare this approach against a single model with SMOTE. Measure both performance and variance across runs.
+4. **结合平衡袋装的集成（Ensemble with Balanced Bagging）**：训练多个模型，每个模型都在一个平衡的自助采样（bootstrap）样本上训练（全部少数类 + 多数类随机子集）。对它们的预测求平均。把这种方法与单个使用 SMOTE 的模型比较，同时衡量性能和多次运行之间的方差。
 
-5. **Imbalance ratio experiment**: take a balanced dataset and progressively increase the imbalance ratio (50/50, 70/30, 90/10, 95/5, 99/1). For each ratio, train with and without SMOTE. Plot F1 vs imbalance ratio for both approaches. At what ratio does SMOTE start making a meaningful difference?
+5. **不平衡比例实验（Imbalance Ratio Experiment）**：从一个平衡数据集出发，逐步提高不平衡比例（50/50、70/30、90/10、95/5、99/1）。对每个比例，分别在使用和不使用 SMOTE 的情况下训练。绘制两种方法的 F1 随不平衡比例变化的曲线。在哪个比例下，SMOTE 开始带来明显收益？
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 常见说法 | 实际含义 |
 |------|----------------|----------------------|
-| Class imbalance | "One class has way more samples" | The distribution of classes in the dataset is significantly skewed, causing models to favor the majority class |
-| SMOTE | "Synthetic oversampling" | Creates new minority samples by interpolating between existing minority samples and their k-nearest minority neighbors |
-| Class weights | "Making errors on rare classes more expensive" | Multiplying the loss function by class-specific weights so the model penalizes minority misclassification more heavily |
-| Threshold tuning | "Moving the decision boundary" | Changing the probability cutoff for classification from the default 0.5 to a value that optimizes the desired metric |
-| Precision-recall tradeoff | "You cannot have both" | Lowering the threshold catches more positives (higher recall) but also flags more false positives (lower precision), and vice versa |
-| AUPRC | "Area under the PR curve" | Summarizes the precision-recall curve into a single number; more informative than AUC-ROC when classes are heavily imbalanced |
-| Matthews Correlation Coefficient | "The balanced metric" | A correlation between predicted and actual labels that produces a high score only when the model performs well on both classes |
-| Cost-sensitive learning | "Different mistakes cost different amounts" | Incorporating real-world misclassification costs into the training objective so the model optimizes for total cost, not error count |
-| Random oversampling | "Duplicate the minority" | Repeating minority class samples to balance class counts; simple but risks overfitting to duplicated points |
+| 类别不平衡 | “某一个类别的样本多得多” | 数据集中各类别的分布明显偏斜，导致模型偏向多数类 |
+| SMOTE | “合成过采样” | 通过在现有少数类样本与其 k 个最近少数类邻居之间做插值，创建新的少数类样本 |
+| 类别权重 | “让稀有类别的错误更贵” | 给损失函数乘上类别特定权重，让模型对少数类误分类施加更重惩罚 |
+| 阈值调优 | “移动决策边界” | 将分类概率的阈值从默认的 0.5 调整为能优化目标指标的数值 |
+| 精确率-召回率权衡 | “两者不可兼得” | 降低阈值会抓到更多正类（更高召回率），但也会带来更多假阳性（更低精确率）；反之亦然 |
+| AUPRC | “PR 曲线下面积” | 用一个数字总结精确率-召回率曲线；在类别严重不平衡时，它比 AUC-ROC 更有信息量 |
+| 马修斯相关系数 | “平衡指标” | 预测标签与真实标签之间的相关系数；只有在模型对两个类别都表现良好时才会得到高分 |
+| 代价敏感学习 | “不同错误有不同代价” | 把真实世界中的误分类成本纳入训练目标，让模型优化总成本，而不是错误数量 |
+| 随机过采样 | “复制少数类” | 通过重复少数类样本来平衡类别数量；做法简单，但容易对重复点过拟合 |
 
-## Further Reading
+## 延伸阅读
 
-- [SMOTE: Synthetic Minority Over-sampling Technique (Chawla et al., 2002)](https://arxiv.org/abs/1106.1813) -- the original SMOTE paper, still the most cited work on imbalanced learning
-- [Learning from Imbalanced Data (He & Garcia, 2009)](https://ieeexplore.ieee.org/document/5128907) -- comprehensive survey covering sampling, cost-sensitive, and algorithmic approaches
-- [imbalanced-learn documentation](https://imbalanced-learn.org/stable/) -- Python library with SMOTE variants, undersampling strategies, and pipeline integration
-- [The Precision-Recall Plot Is More Informative than the ROC Plot (Saito & Rehmsmeier, 2015)](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0118432) -- when and why to prefer PR curves over ROC curves for imbalanced problems
+- [SMOTE: Synthetic Minority Over-sampling Technique (Chawla et al., 2002)](https://arxiv.org/abs/1106.1813) -- SMOTE 的原始论文，至今仍是不平衡学习领域被引用最多的工作之一
+- [Learning from Imbalanced Data (He & Garcia, 2009)](https://ieeexplore.ieee.org/document/5128907) -- 一篇全面的综述，涵盖采样、代价敏感和算法层面的各种方法
+- [imbalanced-learn documentation](https://imbalanced-learn.org/stable/) -- Python 库文档，包含 SMOTE 变体、欠采样策略和流水线集成
+- [The Precision-Recall Plot Is More Informative than the ROC Plot (Saito & Rehmsmeier, 2015)](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0118432) -- 解释在不平衡问题中何时以及为什么应优先使用 PR 曲线而不是 ROC 曲线

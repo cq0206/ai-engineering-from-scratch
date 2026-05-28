@@ -1,116 +1,116 @@
-# Anthropic's Workflow Patterns: Simple Over Complex
+# Anthropic 的工作流模式：简单优于复杂
 
-> Schluntz and Zhang (Anthropic, Dec 2024) distinguish workflows (predefined paths) from agents (dynamic tool-use). Five workflow patterns cover most cases. Start with direct API calls. Add agents only when steps cannot be predicted.
+> Schluntz 和 Zhang（Anthropic，2024 年 12 月）区分了工作流（workflows，预定义路径）与智能体（agents，动态工具使用）。五种工作流模式已覆盖大多数场景。先从直接 API 调用开始。只有当步骤无法预测时，再引入智能体。
 
-**Type:** Learn + Build
-**Languages:** Python (stdlib)
-**Prerequisites:** Phase 14 · 01 (Agent Loop)
-**Time:** ~60 minutes
+**类型：** 学习 + 构建
+**语言：** Python（标准库）
+**先修要求：** 第 14 阶段 · 01（智能体循环）
+**时间：** 约 60 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Name Anthropic's five workflow patterns: prompt chaining, routing, parallelization, orchestrator-workers, evaluator-optimizer.
-- Explain the agent-vs-workflow distinction and the engineering cost of each.
-- Identify when to pick a workflow over an agent (and vice versa).
-- Implement all five patterns in stdlib against a scripted LLM.
+- 说出 Anthropic 的五种工作流模式：提示链（prompt chaining）、路由（routing）、并行化（parallelization）、协调者-工作者（orchestrator-workers）、评估者-优化器（evaluator-optimizer）。
+- 解释智能体与工作流的区别，以及各自的工程成本。
+- 判断何时应选择工作流而非智能体（以及反过来何时应选择智能体）。
+- 仅使用标准库、基于脚本化 LLM 实现这五种模式。
 
-## The Problem
+## 问题
 
-Teams reach for multi-agent frameworks for problems that want a single function call. The cost is real: frameworks add layers that obscure prompts, hide control flow, and invite premature complexity. Schluntz and Zhang's Dec 2024 post is the most-cited industry pushback: start simple, add complexity only when it earns its cost.
+团队常常为本该用一次函数调用解决的问题，直接上多智能体框架。代价是真实存在的：框架会增加层级，掩盖提示词（prompt），隐藏控制流，并诱发过早复杂化。Schluntz 和 Zhang 在 2024 年 12 月的文章，是业内被引用最多的反思之一：先从简单方案开始，只有当复杂性真正值得其成本时，再把它加上去。
 
-## The Concept
+## 概念
 
-### Workflows vs agents
+### 工作流与智能体
 
-- **Workflow.** LLMs and tools orchestrated through predefined code paths. Engineers own the graph.
-- **Agent.** LLMs dynamically direct their own tools and take their own steps. The model owns the graph.
+- **工作流。** 通过预定义代码路径编排的 LLM 与工具。图结构由工程师掌控。
+- **智能体。** LLM 动态决定要使用哪些工具、采取哪些步骤。图结构由模型掌控。
 
-Both have their place. Workflows are cheaper, faster, and easier to debug. Agents unlock open-ended problems but make failure modes harder to reason about.
+两者各有适用场景。工作流更便宜、更快，也更容易调试。智能体能解决开放式问题，但其失败模式也更难推理。
 
-### The augmented LLM
+### 增强型 LLM
 
-Foundation for all five patterns: one LLM with three capabilities wired in — search (retrieval), tools (actions), memory (persistence). Any API call can use these.
+五种模式的共同基础：一个 LLM，接入三种能力——检索（retrieval）、工具（actions）和记忆持久化（persistence）。任何一次 API 调用都可以使用这些能力。
 
-### The five patterns
+### 五种模式
 
-1. **Prompt chaining.** Output of call 1 is input to call 2. Use when a task has a clean linear decomposition. Optional programmatic gates between steps.
+1. **提示链。** 第 1 次调用的输出作为第 2 次调用的输入。当任务可以清晰地线性拆解时使用。步骤之间也可以加入可选的程序化闸门。
 
-2. **Routing.** A classifier LLM picks which downstream LLM or tool to invoke. Use when categorically different inputs need different handling (tier-1 support vs refund vs bug vs sales).
+2. **路由。** 由一个分类器 LLM 决定调用哪个下游 LLM 或工具。当类别明显不同的输入需要不同处理方式时使用（如一线支持、退款、缺陷、销售）。
 
-3. **Parallelization.** Run N LLM calls concurrently, aggregate results. Two shapes: sectioning (different chunks) and voting (same prompt, N runs, majority/synthesis).
+3. **并行化。** 并发运行 N 次 LLM 调用，再聚合结果。常见有两种形态：分段（sectioning，即不同分块）与投票（voting，即同一提示运行 N 次，再多数决或综合）。
 
-4. **Orchestrator-workers.** An orchestrator LLM dynamically decides which workers (also LLMs) to run and synthesizes their output. Similar to agent loops but the orchestrator does not loop indefinitely.
+4. **协调者-工作者。** 一个协调者 LLM 动态决定要运行哪些工作者（也都是 LLM），并综合它们的输出。它与智能体循环类似，但协调者不会无限循环。
 
-5. **Evaluator-optimizer.** One LLM proposes an answer, another LLM evaluates it. Iterate until the evaluator passes. This is Self-Refine (Lesson 05) generalized.
+5. **评估者-优化器。** 一个 LLM 提出答案，另一个 LLM 负责评估。不断迭代，直到评估通过。这可以看作是 Self-Refine（第 05 课）的泛化。
 
-### Where workflows beat agents
+### 工作流优于智能体的场景
 
-- **Predictable tasks.** If you can enumerate the steps, you should.
-- **Cost-bound tasks.** Workflows have bounded step counts; agents can spiral.
-- **Compliance-bound tasks.** Auditors want to read the graph, not infer it from trajectories.
+- **可预测任务。** 如果你能枚举所有步骤，那就应该这么做。
+- **成本受限任务。** 工作流的步骤数有上界；智能体可能失控膨胀。
+- **合规受限任务。** 审计人员希望直接阅读图结构，而不是从执行轨迹里反推。
 
-### Where agents beat workflows
+### 智能体优于工作流的场景
 
-- **Open-ended research.** When the next step depends on what the last step returned.
-- **Variable-length tasks.** Minutes to hours of work where step count is unknown.
-- **Novel domains.** When you don't yet know the right workflow — exploration first, codify later.
+- **开放式研究。** 当下一步取决于上一步返回了什么。
+- **长度可变任务。** 工作可能持续数分钟到数小时，步骤数未知。
+- **新领域。** 当你还不知道正确工作流是什么——先探索，再固化。
 
-### The context-engineering companion
+### 上下文工程配套主题
 
-"Effective context engineering for AI agents" (Anthropic 2025) formalizes the adjacent discipline: the 200k window is a budget, not a container. What to include, when to compact, when to let context grow. Covered in detail in Phase 14 lesson on context compression (Phase 14 earlier lesson 06 in this curriculum before the renumber).
+《Effective context engineering for AI agents》（Anthropic，2025）将相邻的一门学科形式化了：20 万上下文窗口是预算，不是容器。应该纳入什么、何时压缩、何时允许上下文继续增长。相关内容会在本阶段关于上下文压缩的课程中详细展开（在本课程重编号前，对应更早的第 14 阶段第 06 课）。
 
-## Build It
+## 动手构建
 
-`code/main.py` implements all five workflow patterns against a `ScriptedLLM`:
+`code/main.py` 基于 `ScriptedLLM` 实现了全部五种工作流模式：
 
-- `prompt_chain(input, steps)` — sequential.
-- `route(input, classifier, handlers)` — classification + dispatch.
-- `parallel_vote(prompt, n, aggregator)` — N runs, aggregate.
-- `orchestrator_workers(task, workers)` — orchestrator picks workers.
-- `evaluator_optimizer(task, proposer, evaluator, max_iter)` — loop until pass.
+- `prompt_chain(input, steps)` —— 顺序执行。
+- `route(input, classifier, handlers)` —— 分类 + 分发。
+- `parallel_vote(prompt, n, aggregator)` —— 运行 N 次并聚合。
+- `orchestrator_workers(task, workers)` —— 协调者选择工作者。
+- `evaluator_optimizer(task, proposer, evaluator, max_iter)` —— 循环直到通过。
 
-Run it:
+运行：
 
 ```
 python3 code/main.py
 ```
 
-Each pattern prints its trace. Total lines of code per pattern is ~10-15; the cost of a framework is measured in thousands.
+每种模式都会打印自己的执行轨迹。每种模式的代码量大约只有 10–15 行；而一个框架的成本，往往要以数千行来衡量。
 
-## Use It
+## 使用
 
-- Direct API calls for most tasks.
-- Framework only when the pattern genuinely needs durable state (LangGraph), actor-model concurrency (AutoGen v0.4), or role templating (CrewAI).
-- Reach for the Claude Agent SDK when you want the Claude Code harness shape without rebuilding it.
+- 大多数任务直接调用 API。
+- 只有当某种模式确实需要持久状态（LangGraph）、演员模型并发（AutoGen v0.4）或角色模板化（CrewAI）时，再使用框架。
+- 如果你想要 Claude Code 那种运行外壳（harness）形态，而又不想自己重建一套，就使用 Claude Agent SDK。
 
-## Ship It
+## 交付
 
-`outputs/skill-workflow-picker.md` picks the right pattern for a given task description, including the decision rationale and the refactor path to an agent if workflows fall short.
+`outputs/skill-workflow-picker.md` 会根据给定任务描述选择正确的模式，包括决策依据，以及当工作流不够用时如何重构为智能体的路径。
 
-## Exercises
+## 练习
 
-1. Implement routing with a confidence threshold. Below threshold -> escalate to human. Where does the threshold land for a tier-1 support use case?
-2. Add a timeout to `parallel_vote`. What happens when one call hangs? How do you aggregate with missing votes?
-3. Turn `evaluator_optimizer` into a bandit: keep the top-2 outputs across iterations so a late good result doesn't get overwritten by a late bad one.
-4. Combine prompt chaining with routing: a router picks one of three chains. Measure token cost vs a single big-prompt alternative.
-5. Pick one of your production features. Draw the workflow graph. Count steps. Would an agent actually be better here?
+1. 为路由实现一个置信度阈值。低于阈值时转交人工。对于一线支持场景，这个阈值应设在什么位置？
+2. 给 `parallel_vote` 增加超时。当某一次调用卡住时会发生什么？在缺失部分投票结果的情况下该如何聚合？
+3. 将 `evaluator_optimizer` 改造成一个多臂老虎机（bandit）：在多轮迭代中保留前 2 个最佳输出，这样后期出现的好结果就不会被后期出现的坏结果覆盖。
+4. 将提示链与路由结合：由一个路由器在三条链中选一条。衡量其令牌成本，与单个大型提示词方案相比如何。
+5. 选一个你的生产功能。画出它的工作流图。数一数步骤。这里使用智能体真的会更好吗？
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|----------------|------------------------|
-| Workflow | "Predefined flow" | Engineer-owned graph of LLM and tool calls |
-| Agent | "Autonomous AI" | Model-owned graph; dynamic tool direction |
-| Augmented LLM | "LLM with tools" | LLM + search + tools + memory; the atomic unit |
-| Prompt chaining | "Sequential calls" | Output of call N is input to call N+1 |
-| Routing | "Classifier dispatch" | Pick which chain/model handles the input |
-| Parallelization | "Fan out" | N concurrent calls; aggregate by sectioning or voting |
-| Orchestrator-workers | "Dispatcher agent" | Orchestrator LLM picks specialist LLMs dynamically |
-| Evaluator-optimizer | "Proposer + judge" | Iterate until evaluator passes; Self-Refine generalized |
+| 术语 | 人们常说 | 实际含义 |
+|------|----------|----------|
+| 工作流 | “预定义流程” | 由工程师拥有的 LLM 与工具调用图 |
+| 智能体 | “自主 AI” | 由模型拥有的图；动态决定工具调用方向 |
+| 增强型 LLM | “带工具的 LLM” | LLM + 搜索 + 工具 + 记忆；最小原子单元 |
+| 提示链 | “顺序调用” | 第 N 次调用的输出是第 N+1 次调用的输入 |
+| 路由 | “分类器分发” | 选择由哪条链/哪个模型处理输入 |
+| 并行化 | “扇出” | N 次并发调用；通过分段或投票聚合 |
+| 协调者-工作者 | “分发智能体” | 协调者 LLM 动态选择专长型 LLM |
+| 评估者-优化器 | “提议者 + 裁判” | 持续迭代直到评估通过；Self-Refine 的泛化 |
 
-## Further Reading
+## 延伸阅读
 
-- [Anthropic, Building Effective Agents (Dec 2024)](https://www.anthropic.com/research/building-effective-agents) — the five workflow patterns
-- [Anthropic, Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — the companion discipline
-- [LangGraph overview](https://docs.langchain.com/oss/python/langgraph/overview) — when stateful graphs earn their cost
-- [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) — the orchestrator-workers pattern, productized
+- [Anthropic, Building Effective Agents (Dec 2024)](https://www.anthropic.com/research/building-effective-agents) —— 五种工作流模式
+- [Anthropic, Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) —— 配套学科
+- [LangGraph overview](https://docs.langchain.com/oss/python/langgraph/overview) —— 何时有状态图值得付出其成本
+- [OpenAI Agents SDK](https://openai.github.io/openai-agents-python/) —— 产品化的协调者-工作者模式

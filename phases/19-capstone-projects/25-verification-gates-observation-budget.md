@@ -1,92 +1,92 @@
-# Capstone Lesson 25: Verification Gates and the Observation Budget
+# 毕业项目课程 25：验证门 (verification gate) 与观察预算
 
-> An agent harness without a verification layer is a wish in a trenchcoat. This lesson builds the deterministic gate chain that decides whether a tool call is allowed to fire, how much of its output the agent is allowed to see, and when the loop has to stop because the agent has read too much. The chain is a function of small, named gates plus an observation ledger that tracks every token the model has been shown.
+> 没有验证层的智能体运行框架，只是披着风衣的愿望。本课构建一条确定性的门控链 (gate chain)，用来决定某次工具调用是否允许触发、智能体能看到多少输出，以及当智能体已经读得太多时循环应在何时停止。这条链由一组小而具名的门 (gate) 函数组成，外加一本观察账本 (observation ledger)，用于跟踪模型曾被展示过的每一个 token。
 
-**Type:** Build
-**Languages:** Python (stdlib)
-**Prerequisites:** Phase 19 · 20-24 (Track A1: agent loop, tool registry, message store, prompt builder, model router), Phase 14 · 33 (instructions as constraints), Phase 14 · 36 (scope contracts), Phase 14 · 38 (verification gates)
-**Time:** ~90 minutes
+**类型：** 构建
+**语言：** Python（stdlib）
+**前置条件：** 第 19 阶段 · 20-24（Track A1：智能体循环、工具注册表、消息存储、提示构建器、模型路由器），第 14 阶段 · 33（把指令当作约束），第 14 阶段 · 36（作用域契约），第 14 阶段 · 38（验证门）
+**时间：** ~90 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Build a `VerificationGate` protocol with a deterministic `evaluate(call)` method.
-- Compose budget, recency, whitelist, and regex gates into a chain with short-circuit semantics.
-- Track every observation through an `ObservationLedger` keyed by tool and turn.
-- Refuse a tool call when the cumulative observation budget would be exceeded.
-- Surface a structured `GateDecision` record that downstream observability can ingest.
+- 构建一个 `VerificationGate` 协议，提供确定性的 `evaluate(call)` 方法。
+- 把 budget、recency、whitelist 和 regex gate 组合成一条具有短路语义的链。
+- 使用按工具与轮次索引的 `ObservationLedger` 跟踪每一次 observation。
+- 当累计观察预算即将超限时，拒绝该工具调用。
+- 暴露结构化的 `GateDecision` 记录，供下游可观测性系统采集。
 
-## The Problem
+## 问题
 
-When an agent harness lets the model call tools freely, three classes of bug appear within the first hour of real use.
+当一个智能体运行框架允许模型自由调用工具时，真实使用的第一个小时内通常就会出现三类 bug。
 
-The first is unbounded observation. A grep across a 200K-line repo dumps half a million tokens of output into the next turn. The model sees one match per kilobyte and the rest of the context is wasted. The token bill is large and the agent is now worse, not better, at the task.
+第一类是无界观察。一次针对 20 万行仓库的 grep，会把五十万 token 的输出倾倒进下一轮。模型每千字节只真正看到一条匹配，其余上下文全被浪费。token 成本很高，而智能体对任务的表现反而更差。
 
-The second is stale recency. A long-running task accumulates fifty tool calls. The model rereads the first read_file from turn three as if it were live state. Edits made on turn forty-seven never show up because the prompt builder serialized the earliest observations first.
+第二类是陈旧时效。一个长时间运行的任务累计了五十次工具调用。模型却把第三轮的第一个 read_file 当成当前状态反复阅读。第四十七轮做出的编辑根本没出现，因为提示构建器先序列化了最早的 observations。
 
-The third is privilege creep. A research task starts by calling `web_search`, then somehow ends up running `shell` because the model invented a tool name and the harness defaulted to permissive. By the time anyone reads the trace, a junk file is sitting in /tmp and a curl ran against a private API.
+第三类是权限蔓延。一个研究任务先调用 `web_search`，结果不知怎么又跑去执行 `shell`，因为模型编造了一个工具名，而运行框架默认采取宽松策略。等到有人去看 trace 时，`/tmp` 里已经躺着一个垃圾文件，某个针对私有 API 的 curl 也早就跑完了。
 
-A verification gate is the harness component that says no. It is not a model. It is not a judge. It is a deterministic function of `(call, history, ledger)` that returns either ALLOW or DENY with a reason. The reason is logged. The model is told. The loop continues or aborts.
+验证门 (verification gate) 就是那个会说“不”的运行框架组件。它不是模型，不是裁判，而是对 `(call, history, ledger)` 的一个确定性函数。它只会返回 ALLOW 或 DENY，并带上原因。原因会被记录，也会告诉模型。循环随后继续或中止。
 
-## The Concept
+## 概念
 
 ```mermaid
 flowchart LR
-  Call[tool_call] --> Chain[Gate chain]
-  Chain -->|ALLOW| Dispatch[dispatch tool]
-  Chain -->|DENY| Reason[reason]
-  Reason --> Store[append to message store]
-  Reason --> Refusal[increment refusal_count]
-  Reason --> Loop[loop continues<br/>or aborts at threshold]
+  Call[工具调用] --> Chain[门控链]
+  Chain -->|ALLOW| Dispatch[分发工具]
+  Chain -->|DENY| Reason[原因]
+  Reason --> Store[追加到消息存储]
+  Reason --> Refusal[refusal_count 加一]
+  Reason --> Loop[循环继续<br/>或在阈值处中止]
 ```
 
-A gate is anything with an `evaluate(call, ctx) -> GateDecision` method. The chain is an ordered list. Evaluation short-circuits on the first deny. Order matters: cheap structural gates run before expensive token-counting gates.
+门就是任何实现了 `evaluate(call, ctx) -> GateDecision` 方法的对象。链则是一个有序列表。求值在遇到第一个 deny 时就短路。顺序很重要：便宜的结构性 gate 要先于昂贵的 token 计数 gate 运行。
 
-This lesson ships four gates:
+本课提供四个 gate：
 
-- `WhitelistGate`. Allowed tool names are an explicit set. Anything outside is denied. This is the cheapest gate and runs first.
-- `RegexGate`. Tool arguments are matched against a regex. Useful for refusing shell calls with `rm -rf` in them, or HTTP calls to internal IPs. Pure on the call payload.
-- `RecencyGate`. The model only sees observations from the last N turns. Older observations are masked. The gate refuses a tool call whose result would extend an observation window that has already aged out.
-- `BudgetGate`. The cumulative tokens the model has read across the session has a ceiling. When the ledger says the ceiling is reached, every further tool call is denied.
+- `WhitelistGate`。允许的工具名是一个显式集合。任何不在集合中的名字都会被拒绝。这是最便宜的 gate，因此最先运行。
+- `RegexGate`。把工具参数与正则表达式匹配。适合拒绝带有 `rm -rf` 的 shell 调用，或者访问内网 IP 的 HTTP 调用。它只依赖调用载荷本身。
+- `RecencyGate`。模型只能看到最近 N 轮的 observations。更旧的 observation 会被屏蔽。如果某个工具调用的结果只会扩展一个已经过期的观察窗口，这个 gate 就会拒绝它。
+- `BudgetGate`。模型在整个会话中已读过的累计 token 有一个上限。当 ledger 表明上限已到时，之后所有工具调用都会被拒绝。
 
-The observation ledger is the bookkeeping. Every successful tool call writes one row: tool name, turn, tokens emitted, cumulative. The ledger answers two questions: how much has the model seen total, and how much has it seen of tool X. The budget gate reads the first. A per-tool budget gate, which you will write as an exercise, reads the second.
+观察账本 (observation ledger) 负责记账。每次成功的工具调用都会写入一行：工具名、轮次、发出的 token 数、累计值。ledger 只回答两个问题：模型总共看了多少，以及它从某个工具 X 看了多少。budget gate 读第一个问题。一个“按工具限额”的 budget gate —— 你会把它当作练习来写 —— 会读第二个问题。
 
-## Architecture
+## 架构
 
 ```mermaid
 flowchart TD
-  Harness[AgentHarness<br/>lessons 20-24] --> Chain[GateChain<br/>WhitelistGate / RegexGate<br/>RecencyGate / BudgetGate]
+  Harness[AgentHarness<br/>第 20-24 课] --> Chain[GateChain<br/>WhitelistGate / RegexGate<br/>RecencyGate / BudgetGate]
   Chain -->|ALLOW| Dispatch[tool_dispatch]
-  Dispatch --> Result[Tool result]
-  Result -->|write| Ledger[ObservationLedger<br/>per-tool count<br/>cumulative]
+  Dispatch --> Result[工具结果]
+  Result -->|write| Ledger[ObservationLedger<br/>按工具计数<br/>累计]
   Ledger -->|record| Store[MessageStore]
 ```
 
-The harness asks the chain. The chain either nods or refuses. If it nods, the tool runs, the ledger ticks, and the result is appended to the message store. If it refuses, the model is handed the refusal as a system message and the loop decides whether to retry or abort.
+运行框架先询问这条链。链要么点头，要么拒绝。如果点头，工具运行、ledger 记账，结果再追加到消息存储；如果拒绝，模型会收到一条系统消息形式的拒绝说明，然后由循环决定是重试还是中止。
 
-## What you will build
+## 你将构建什么
 
-The implementation is a single `main.py` plus tests.
+实现由一个 `main.py` 和测试组成。
 
-1. `Observation` and `ToolCall` dataclasses define the wire shapes.
-2. `ObservationLedger` records `(turn, tool, tokens)` rows and answers `cumulative()` and `per_tool(name)`.
-3. `GateDecision` carries `(allow, reason, gate_name)`.
-4. `VerificationGate` is the protocol. Each gate implements `evaluate(call, ctx)`.
-5. `GateChain` wraps an ordered list. It calls each gate, returns the first deny, or returns allow if every gate passes.
-6. The demo runs a tiny synthetic agent loop. Three turns. The third turn trips the budget gate and the loop reports a clean refusal with a non-zero refusal count.
+1. `Observation` 与 `ToolCall` dataclass，定义线上形状。
+2. `ObservationLedger`，记录 `(turn, tool, tokens)` 行，并回答 `cumulative()` 与 `per_tool(name)`。
+3. `GateDecision`，携带 `(allow, reason, gate_name)`。
+4. `VerificationGate` 协议。每个 gate 都实现 `evaluate(call, ctx)`。
+5. `GateChain`，包装一个有序列表。它逐个调用 gate，返回第一个 deny；如果全部通过，则返回 allow。
+6. 演示会运行一个很小的合成智能体循环。三轮。第三轮会触发 budget gate，循环以一次干净的拒绝结束，并带有非零的 refusal_count。
 
-The token counter is intentionally a stupid `len(text) // 4` heuristic. The point of this lesson is the gate plumbing, not the tokenizer. Drop in a real tokenizer in production.
+token 计数器故意用了一个很蠢的启发式：`len(text) // 4`。本课的重点是 gate 的管线，不是 tokenizer。生产环境里再替换成真正的 tokenizer。
 
-## Why the chain order matters
+## 为什么链的顺序很重要
 
-A deny is cheaper than an allow. `WhitelistGate` runs in O(1) hash lookup. `RegexGate` runs in O(pattern * argv). `RecencyGate` reads a small slice of the message store. `BudgetGate` reads the entire ledger. You order them by ascending cost so a denied call short-circuits before doing the expensive work.
+deny 比 allow 更便宜。`WhitelistGate` 是 O(1) 的哈希查找。`RegexGate` 是 O(pattern * argv)。`RecencyGate` 读取消息存储里的一小段。`BudgetGate` 则会读取整本 ledger。你要按成本递增排序它们，这样一旦某次调用注定被拒绝，就能在做昂贵工作之前短路。
 
-You also order them by blast radius. Whitelist is the strongest claim: this tool is not in the contract. The regex gate is next: this argument is not in the contract. Recency comes after: the harness still cares but the call is structurally legal. Budget is last because, by definition, it only fires when everything else passed.
+还要按影响半径来排序。whitelist 是最强的断言：这个工具根本不在契约里。regex gate 次之：这个参数不在契约里。recency 再之后：运行框架仍然关心这次调用，只是它虽然在结构上合法，却已经不再新鲜。budget 放在最后，因为从定义上讲，只有前面所有检查都通过，它才有机会触发。
 
-## How this composes with the rest of Track A
+## 它如何与 Track A 的其他内容组合
 
-The previous lessons gave you the loop, the tool registry, the message store, the prompt builder, and the model router. This lesson adds the layer between the model and the tools. Lesson 26 ships the sandbox that the dispatcher hands the tool call to once the gate chain says ALLOW. Lesson 27 ships the eval harness that records refusal counts as a quality signal. Lesson 28 wires the gate decisions into OpenTelemetry spans. Lesson 29 stitches the lot into a working coding agent.
+前面的课程给了你循环、工具注册表、消息存储、提示构建器和模型路由器。本课补上模型与工具之间的那一层。第 26 课会提供 sandbox：当 gate chain 返回 ALLOW 后，调度器就把工具调用交给它。第 27 课会提供 eval harness，把 refusal_count 记录为质量信号。第 28 课会把 gate decision 接进 OpenTelemetry span。第 29 课则把全部部件串成一个可运行的编码智能体。
 
-## Running it
+## 运行方式
 
 ```bash
 cd phases/19-capstone-projects/25-verification-gates-observation-budget
@@ -94,4 +94,5 @@ python3 code/main.py
 python3 -m pytest code/tests/ -v
 ```
 
-The demo prints a turn-by-turn trace including every gate decision and exits zero. The tests cover the ledger, each gate in isolation, the chain short-circuit, and the synthetic loop end-to-end.
+演示会打印逐轮 trace，其中包含每一个 gate decision，并以零退出。测试覆盖 ledger、每个 gate 的独立行为、链式短路，以及这个合成循环的端到端流程。
+
