@@ -1,64 +1,64 @@
-# Function Calling & Tool Use
+# 函数调用与工具使用
 
-> LLMs cannot do anything. They generate text. That is the entire capability. They cannot check the weather, query a database, send an email, run code, or read a file. Every "AI agent" you have ever seen is an LLM generating JSON that says which function to call -- and then your code actually calling it. The model is the brain. Tools are the hands. Function calling is the nervous system connecting them.
+> LLM 本身什么都做不了。它们只会生成文本，这就是它们全部的能力。它们不能查天气、不能查询数据库、不能发邮件、不能运行代码、也不能读取文件。你见过的每一个“AI agent”，本质上都是 LLM 生成一段 JSON 来说明该调用哪个函数——然后由你的代码真正去调用。模型是大脑，工具是双手，而函数调用就是把二者连接起来的神经系统。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 11 Lesson 03 (Structured Outputs)
-**Time:** ~75 minutes
-**Related:** Phase 11 · 14 (Model Context Protocol) — when a tool is shared across hosts, graduate from inline function-calling to an MCP server. This lesson covers the inline case; MCP covers the protocol case.
+**类型：** 构建
+**语言：** Python
+**前置要求：** 第 11 阶段第 03 课（Structured Outputs）
+**时长：** ~75 分钟
+**相关内容：** 第 11 阶段 · 14（Model Context Protocol）——当一个工具需要跨宿主共享时，就该从内联 function-calling 升级到 MCP server。本课讲的是内联场景；MCP 讲的是协议场景。
 
-## Learning Objectives
+## 学习目标
 
-- Implement a function calling loop: define tool schemas, parse the model's tool-call JSON, execute functions, and return results
-- Design tool schemas with clear descriptions and typed parameters that the model can reliably invoke
-- Build a multi-turn agent loop that chains multiple function calls to answer complex queries
-- Handle function calling edge cases: parallel tool calls, error propagation, and preventing infinite tool loops
+- 实现一套函数调用循环：定义工具 schema、解析模型输出的 tool-call JSON、执行函数，并返回结果
+- 设计带有清晰描述和类型化参数的工具 schema，使模型能稳定地调用它们
+- 构建一个多轮 agent 循环，通过串联多个函数调用来回答复杂查询
+- 处理函数调用的边缘情况：并行工具调用、错误传播，以及防止无限工具循环
 
-## The Problem
+## 问题
 
-You build a chatbot. A user asks: "What's the weather in Tokyo right now?"
+你做了一个聊天机器人。用户问：“现在东京的天气怎么样？”
 
-The model responds: "I don't have access to real-time weather data, but based on the season, Tokyo is likely around 15 degrees Celsius..."
+模型回复：“我无法访问实时天气数据，但根据季节判断，东京现在大概是 15 摄氏度左右……”
 
-That is a hallucination dressed in a disclaimer. The model does not know the weather. It never will. Weather changes every hour. The model's training data is months old.
+这只是披着免责声明外衣的幻觉。模型根本不知道天气，也永远不会知道。天气每小时都在变化，而模型的训练数据通常已经过时了几个月。
 
-The correct answer requires calling the OpenWeatherMap API, getting the current temperature, and returning the real number. The model cannot call APIs. Your code can. The missing piece: a structured protocol that lets the model say "I need to call the weather API with these arguments" and lets your code execute it and feed the result back.
+正确答案需要调用 OpenWeatherMap API，拿到当前温度，再把真实数字返回。模型不能直接调用 API，但你的代码可以。缺失的那一环，就是一种结构化协议：它允许模型说“我需要用这些参数去调用天气 API”，然后由你的代码执行调用并把结果喂回去。
 
-This is function calling. The model outputs structured JSON describing which function to invoke with what arguments. Your application executes the function. The result goes back into the conversation. The model uses the result to produce its final answer.
+这就是函数调用（function calling）。模型输出结构化 JSON，描述该调用哪个函数、传入什么参数。你的应用负责执行函数，结果再回到对话中，模型基于这些结果生成最终答案。
 
-Without function calling, LLMs are encyclopedias. With it, they become agents.
+没有函数调用时，LLM 只是百科全书；有了它，LLM 才变成 agent。
 
-## The Concept
+## 核心概念
 
-### The Function Calling Loop
+### 函数调用循环
 
-Every tool-use interaction follows the same 5-step loop.
+每一次工具使用交互，都遵循相同的 5 步循环。
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant A as Application
-    participant M as Model
-    participant T as Tool
+    participant U as 用户
+    participant A as 应用
+    participant M as 模型
+    participant T as 工具
 
-    U->>A: "What's the weather in Tokyo?"
-    A->>M: messages + tool definitions
+    U->>A: "东京现在天气怎么样？"
+    A->>M: 消息 + 工具定义
     M->>A: tool_call: get_weather(city="Tokyo")
-    A->>T: Execute get_weather("Tokyo")
+    A->>T: 执行 get_weather("Tokyo")
     T->>A: {"temp": 18, "condition": "cloudy"}
-    A->>M: tool_result + conversation
-    M->>A: "It's 18C and cloudy in Tokyo."
-    A->>U: Final response
+    A->>M: tool_result + 对话上下文
+    M->>A: "东京现在 18C，多云。"
+    A->>U: 最终响应
 ```
 
-Step 1: the user sends a message. Step 2: the model receives the message along with tool definitions (JSON Schema describing available functions). Step 3: instead of responding with text, the model outputs a tool call -- a structured JSON object with the function name and arguments. Step 4: your code executes the function and captures the result. Step 5: the result goes back to the model, which now has real data to produce its final answer.
+第 1 步：用户发送消息。第 2 步：模型收到这条消息，以及工具定义（即描述可用函数的 JSON Schema）。第 3 步：模型不是直接返回文本，而是输出一个工具调用——它是一个结构化 JSON 对象，包含函数名和参数。第 4 步：你的代码执行该函数，并捕获结果。第 5 步：结果回到模型，此时模型拥有真实数据，才能生成最终答案。
 
-The model never executes anything. It only decides what to call and with what arguments. Your code is the executor.
+模型从不真正执行任何东西。它只负责决定“该调用什么、传什么参数”。真正的执行者是你的代码。
 
-### Tool Definitions: The JSON Schema Contract
+### 工具定义：JSON Schema 契约
 
-Each tool is defined by a JSON Schema that tells the model what the function does, what arguments it takes, and what types those arguments must be.
+每个工具都由一个 JSON Schema 定义，这份 schema 会告诉模型：这个函数做什么、接受哪些参数，以及这些参数必须是什么类型。
 
 ```json
 {
@@ -85,34 +85,34 @@ Each tool is defined by a JSON Schema that tells the model what the function doe
 }
 ```
 
-The `description` fields are critical. The model reads them to decide when and how to use the tool. A vague description like "gets weather" produces worse tool selection than "Get current weather for a city. Returns temperature in Celsius and conditions." The description is a prompt for tool selection.
+其中的 `description` 字段非常关键。模型会读这些描述来决定何时以及如何使用工具。像“gets weather”这种模糊描述，会比“Get current weather for a city. Returns temperature in Celsius and conditions.”导致更差的工具选择效果。换句话说，description 本身就是给工具选择用的提示词。
 
-### Provider Comparison
+### 提供商对比
 
-Every major provider supports function calling, but the API surface differs.
+所有主流提供商都支持函数调用，但 API 表面形态各不相同。
 
-| Provider | API Parameter | Tool Call Format | Parallel Calls | Forced Calling |
-|----------|--------------|-----------------|---------------|----------------|
-| OpenAI (GPT-5, o4) | `tools` | `tool_calls[].function` | Yes (multiple per turn) | `tool_choice="required"` |
-| Anthropic (Claude 4.6/4.7) | `tools` | `content[].type="tool_use"` | Yes (multiple blocks) | `tool_choice={"type":"any"}` |
-| Google (Gemini 3) | `function_declarations` | `functionCall` | Yes | `function_calling_config` |
-| Open-weight (Llama 4, Qwen3, DeepSeek-V3) | Native `tools` on Llama 4; Hermes or ChatML on others | Mixed | Model-dependent | Prompt-based or `tool_choice` if supported |
+| 提供商 | API 参数 | 工具调用格式 | 并行调用 | 强制调用 |
+|--------|----------|--------------|----------|----------|
+| OpenAI（GPT-5, o4） | `tools` | `tool_calls[].function` | 支持（单轮多个） | `tool_choice="required"` |
+| Anthropic（Claude 4.6/4.7） | `tools` | `content[].type="tool_use"` | 支持（多个 block） | `tool_choice={"type":"any"}` |
+| Google（Gemini 3） | `function_declarations` | `functionCall` | 支持 | `function_calling_config` |
+| 开放权重（Llama 4, Qwen3, DeepSeek-V3） | Llama 4 原生支持 `tools`；其他常见 Hermes 或 ChatML | 不统一 | 取决于模型 | 若支持则用提示词或 `tool_choice` |
 
-By 2026 the three closed providers have converged on near-identical JSON-Schema-based formats. Llama 4 ships with a native `tools` field that matches OpenAI's shape. Open-weight fine-tunes still vary — the Hermes format (NousResearch) is the most common for third-party fine-tunes. For shared tools across hosts, prefer MCP (Phase 11 · 14) over inline function-calling — the server is the same for all of them.
+到 2026 年，三家闭源提供商已经基本收敛到几乎相同、基于 JSON Schema 的格式。Llama 4 也自带了与 OpenAI 形状相近的原生 `tools` 字段。开放权重微调模型仍然各不相同——其中 Hermes 格式（NousResearch）是第三方微调里最常见的一种。若工具需要跨宿主共享，优先选择 MCP（第 11 阶段 · 14），而不是内联 function-calling——因为对所有宿主来说，server 可以保持一致。
 
-### Tool Choice: Auto, Required, Specific
+### Tool Choice：Auto、Required、Specific
 
-You control when the model uses tools.
+你可以控制模型什么时候必须用工具。
 
-**Auto** (default): the model decides whether to call a tool or respond directly. "What's 2+2?" -- responds directly. "What's the weather?" -- calls the tool.
+**Auto**（默认）：模型自行决定是调用工具还是直接回复。比如“2+2 等于几？”——直接回答；“天气怎么样？”——调用工具。
 
-**Required**: the model must call at least one tool. Use this when you know the user's intent requires a tool. Prevents the model from guessing instead of looking up real data.
+**Required**：模型必须至少调用一个工具。当你确信用户意图需要工具时使用它。这样可以防止模型乱猜，而不是去查真实数据。
 
-**Specific function**: force the model to call a particular function. `tool_choice={"type":"function", "function": {"name": "get_weather"}}` guarantees the weather tool is called, regardless of the query. Use this for routing -- when upstream logic already determined which tool is needed.
+**Specific function**：强制模型调用某个特定函数。`tool_choice={"type":"function", "function": {"name": "get_weather"}}` 会确保天气工具被调用，不管用户问题具体怎么写。这适合做路由——即上游逻辑已经确定所需工具时。
 
-### Parallel Function Calling
+### 并行函数调用
 
-GPT-4o and Claude can call multiple functions in a single turn. A user asks: "What's the weather in Tokyo and New York?" The model outputs two tool calls simultaneously:
+GPT-4o 和 Claude 都能在单轮里调用多个函数。比如用户问：“东京和纽约现在天气怎么样？”模型会同时输出两个工具调用：
 
 ```json
 [
@@ -121,37 +121,37 @@ GPT-4o and Claude can call multiple functions in a single turn. A user asks: "Wh
 ]
 ```
 
-Your code executes both (ideally concurrently), returns both results, and the model synthesizes a single response. This cuts round trips from 2 to 1. For agents with 5-10 tool calls per query, parallel calling reduces latency by 60-80%.
+你的代码执行这两个调用（理想情况下并发执行），返回两份结果，模型再综合成一个统一回复。这样能把往返次数从 2 次压到 1 次。对于每个查询要触发 5-10 次工具调用的 agent 来说，并行调用能降低 60-80% 的延迟。
 
-### Structured Outputs vs Function Calling
+### 结构化输出 vs 函数调用
 
-Lesson 03 covered structured outputs. Function calling uses the same JSON Schema machinery, but for a different purpose.
+第 03 课讲过结构化输出。函数调用与它使用的是同一套 JSON Schema 机制，但用途不同。
 
-**Structured outputs**: force the model to produce data in a specific shape. The output is the final product. Example: extract product info from text as `{name, price, in_stock}`.
+**结构化输出（structured outputs）**：强制模型产出某种固定形状的数据。这个输出本身就是最终产物。例子：把文本里的商品信息抽取成 `{name, price, in_stock}`。
 
-**Function calling**: the model declares an intent to execute an action. The output is an intermediate step. Example: `get_weather(city="Tokyo")` -- the model is requesting an action, not producing the final answer.
+**函数调用（function calling）**：模型声明自己想执行某个动作。这个输出只是中间步骤。例子：`get_weather(city="Tokyo")`——模型是在请求执行动作，而不是直接给最终答案。
 
-Use structured outputs when you want data extraction. Use function calling when you want the model to interact with external systems.
+当你想做数据抽取时，用结构化输出；当你希望模型与外部系统交互时，用函数调用。
 
-### Security: The Non-Negotiable Rules
+### 安全：不可谈判的规则
 
-Function calling is the most dangerous capability you can give an LLM. The model chooses what to execute. If your tool set includes database queries, the model constructs the queries. If it includes shell commands, the model writes them.
+函数调用是你能赋予 LLM 的最危险能力。模型会决定要执行什么。如果你的工具集里包含数据库查询，那么查询语句是模型构造的；如果包含 shell 命令，那么命令也是模型写的。
 
-**Rule 1: Never pass model-generated SQL directly to a database.** The model can and will generate DROP TABLE, UNION injections, or queries that return every row. Always parameterize. Always validate. Always use an allowlist of operations.
+**规则 1：绝不要把模型生成的 SQL 直接传给数据库。** 模型可能会生成 DROP TABLE、UNION 注入，或者返回所有数据行的查询。始终做参数化，始终做校验，始终使用 allowlist 限制操作范围。
 
-**Rule 2: Allowlist functions.** The model can only call functions you explicitly define. Never build a generic "execute any function by name" tool. If you have 50 internal functions, expose only the 5 the user needs.
+**规则 2：函数必须走 allowlist。** 模型只能调用你显式定义的函数。绝不要构建一个“按名字执行任意函数”的通用工具。如果你内部有 50 个函数，只暴露用户真正需要的 5 个。
 
-**Rule 3: Validate arguments.** The model might pass a city name of `"; DROP TABLE users; --"`. Validate every argument against expected types, ranges, and formats before execution.
+**规则 3：验证参数。** 模型可能传入类似 `"; DROP TABLE users; --"` 的城市名。执行前，必须根据预期类型、范围和格式验证每个参数。
 
-**Rule 4: Sanitize tool results.** If a tool returns sensitive data (API keys, PII, internal errors), filter it before sending it back to the model. The model will include tool results in its response verbatim.
+**规则 4：清洗工具结果。** 如果工具返回了敏感数据（API keys、PII、内部错误），在送回模型前必须先过滤。否则模型很可能会原样把这些结果写进回复里。
 
-**Rule 5: Rate limit tool calls.** A model in a loop can call tools hundreds of times. Set a maximum (10-20 calls per conversation is reasonable). Break infinite loops.
+**规则 5：限制工具调用频率。** 处在循环里的模型可能会连续调用工具几百次。你必须设置上限（每段对话 10-20 次通常比较合理），以切断无限循环。
 
-### Error Handling
+### 错误处理
 
-Tools fail. APIs time out. Databases go down. Files do not exist. The model needs to know when a tool fails and why.
+工具会失败。API 会超时。数据库会挂。文件可能不存在。模型必须知道工具何时失败，以及为什么失败。
 
-Return errors as structured tool results, not exceptions:
+错误应作为结构化工具结果返回，而不是直接抛异常：
 
 ```json
 {
@@ -161,21 +161,21 @@ Return errors as structured tool results, not exceptions:
 }
 ```
 
-The model reads this, adjusts its arguments, and retries. Models are good at self-correcting from structured error messages. They are bad at recovering from empty responses or generic "something went wrong" errors.
+模型读到这样的结果后，就能调整参数并重试。模型很擅长根据结构化错误信息自我修正，但不擅长从空响应或泛泛的“出错了”里恢复。
 
-### MCP: Model Context Protocol
+### MCP：模型上下文协议（Model Context Protocol）
 
-MCP is Anthropic's open standard for tool interoperability. Instead of every application defining its own tools, MCP provides a universal protocol: tools are served by MCP servers, consumed by MCP clients (like Claude Code, Cursor, or your application).
+MCP 是 Anthropic 提出的开放标准，用来实现工具互操作。过去是每个应用自己定义工具；而 MCP 提供了一种通用协议：工具由 MCP server 提供，由 MCP client（如 Claude Code、Cursor 或你的应用）消费。
 
-One MCP server can expose tools to any compatible client. A Postgres MCP server gives any MCP-compatible agent database access. A GitHub MCP server gives any agent repository access. The tools are defined once, used everywhere.
+一个 MCP server 可以把工具暴露给任何兼容 client。一个 Postgres MCP server 能让任何兼容 MCP 的 agent 获得数据库访问能力；一个 GitHub MCP server 能让任何 agent 获得仓库访问能力。工具定义一次，到处可用。
 
-MCP is to function calling what HTTP is to networking. It standardizes the transport layer so tools become portable.
+MCP 之于函数调用，就像 HTTP 之于网络。它标准化了传输层，让工具真正具备可移植性。
 
-## Build It
+## 动手构建
 
-### Step 1: Define the Tool Registry
+### 第 1 步：定义工具注册表
 
-Build a registry that stores tool definitions and their implementations. Each tool has a JSON Schema definition (what the model sees) and a Python function (what your code executes).
+构建一个注册表，用来保存工具定义及其实现。每个工具都包含一份 JSON Schema 定义（给模型看）和一个 Python 函数（由你的代码执行）。
 
 ```python
 import json
@@ -201,9 +201,9 @@ def register_tool(name, description, parameters, function):
     }
 ```
 
-### Step 2: Implement 5 Tools
+### 第 2 步：实现 5 个工具
 
-Build a calculator, weather lookup, web search simulator, file reader, and code runner.
+实现一个计算器、天气查询、网页搜索模拟器、文件读取器，以及代码运行器。
 
 ```python
 def calculator(expression, precision=2):
@@ -299,7 +299,7 @@ def run_code(code, language="python"):
         return {"error": True, "message": f"{type(e).__name__}: {e}"}
 ```
 
-### Step 3: Register All Tools
+### 第 3 步：注册所有工具
 
 ```python
 def register_all_tools():
@@ -330,9 +330,9 @@ def register_all_tools():
     )
 ```
 
-### Step 4: Build the Function Calling Loop
+### 第 4 步：构建函数调用循环
 
-This is the core engine. It simulates the model deciding which tool to call, executes the tool, and feeds results back.
+这是核心引擎。它模拟模型决定该调用哪个工具，执行工具，并把结果反馈回去。
 
 ```python
 def simulate_model_decision(user_message, tools, conversation_history):
@@ -427,9 +427,9 @@ def run_function_calling_loop(user_message, max_iterations=5):
     return {"conversation": conversation, "tool_results": all_tool_results, "iterations": iteration + 1 if tool_calls else 0}
 ```
 
-### Step 5: Argument Validation
+### 第 5 步：参数校验
 
-Build a validator that checks tool call arguments against the JSON Schema before execution.
+在真正执行之前，构建一个校验器，依据 JSON Schema 检查工具调用参数是否有效。
 
 ```python
 def validate_tool_arguments(tool_name, arguments):
@@ -466,7 +466,7 @@ def validate_tool_arguments(tool_name, arguments):
     return errors
 ```
 
-### Step 6: Run the Demo
+### 第 6 步：运行演示
 
 ```python
 def run_demo():
@@ -555,7 +555,7 @@ def run_demo():
         print(f"  {tool_name}({list(args.values())[0][:40]}): {'BLOCKED' if blocked else 'ALLOWED'}")
 ```
 
-## Use It
+## 实际使用
 
 ### OpenAI Function Calling
 
@@ -602,7 +602,7 @@ def run_demo():
 # print(final.choices[0].message.content)
 ```
 
-OpenAI returns tool calls as `response.choices[0].message.tool_calls`. Each call has an `id` you must include when returning the result. The model uses this ID to match results to calls. GPT-4o can return multiple tool calls in a single response -- iterate and execute all of them.
+OpenAI 会把工具调用放在 `response.choices[0].message.tool_calls` 里返回。每个调用都带有一个 `id`，你在返回工具结果时必须带上它。模型会用这个 ID 将结果与调用对应起来。GPT-4o 可以在单次响应中返回多个工具调用——你需要遍历并执行全部调用。
 
 ### Anthropic Tool Use
 
@@ -644,9 +644,9 @@ OpenAI returns tool calls as `response.choices[0].message.tool_calls`. Each call
 # )
 ```
 
-Anthropic returns tool calls as content blocks with `type: "tool_use"`. The tool result goes in a user message with `type: "tool_result"`. Note the key difference: Anthropic uses `input_schema` for tool parameter definitions, while OpenAI uses `parameters`.
+Anthropic 会把工具调用作为 `type: "tool_use"` 的 content block 返回。工具结果则需要放进一条用户消息里，并使用 `type: "tool_result"`。关键差异在于：Anthropic 用 `input_schema` 定义工具参数，而 OpenAI 用的是 `parameters`。
 
-### MCP Integration
+### MCP 集成
 
 ```python
 # MCP servers expose tools over a standardized protocol.
@@ -669,48 +669,48 @@ Anthropic returns tool calls as content blocks with `type: "tool_use"`. The tool
 #         result = await session.call_tool("query", {"sql": "SELECT count(*) FROM users"})
 ```
 
-MCP decouples tool implementation from tool consumption. The Postgres server knows SQL. The GitHub server knows the API. Your agent just discovers and calls tools -- it does not need provider-specific code for each integration.
+MCP 将工具实现与工具消费解耦。Postgres server 懂 SQL，GitHub server 懂 API，而你的 agent 只需要发现并调用工具——不需要为每个集成都写一套提供商特定代码。
 
-## Ship It
+## 交付
 
-This lesson produces `outputs/prompt-tool-designer.md` -- a reusable prompt template for designing tool definitions. Give it a description of what you want a tool to do, and it produces the complete JSON Schema definition with descriptions, types, and constraints.
+本课会产出 `outputs/prompt-tool-designer.md`——一个可复用的提示词模板，用来设计工具定义。你只要给出工具想做什么，它就能生成完整的 JSON Schema 定义，包括描述、类型和约束。
 
-It also produces `outputs/skill-function-calling-patterns.md` -- a decision framework for implementing function calling in production, covering tool design, error handling, security, and provider-specific patterns.
+它还会产出 `outputs/skill-function-calling-patterns.md`——一个在生产中实现函数调用的决策框架，覆盖工具设计、错误处理、安全性以及提供商差异化模式。
 
-## Exercises
+## 练习
 
-1. **Add a 6th tool: database query.** Implement a simulated SQL tool with an in-memory table. The tool accepts a table name and filter conditions (not raw SQL). Validate that the table name is in an allowlist and that filter operators are restricted to `=`, `>`, `&lt;`, `>=`, `&lt;=`. Return matching rows as JSON.
+1. **增加第 6 个工具：数据库查询。** 实现一个模拟 SQL 工具，底层使用内存表。该工具接受表名和过滤条件（不是原始 SQL）。校验表名是否位于 allowlist 中，并将过滤运算符限制为 `=`、`>`、`&lt;`、`>=`、`&lt;=`。以 JSON 返回匹配行。
 
-2. **Implement retry with error feedback.** When a tool call fails (e.g., city not found), feed the error message back to the model decision function and let it correct its arguments. Track how many retries each call takes. Set a maximum of 3 retries per tool call.
+2. **实现带错误反馈的重试。** 当工具调用失败（例如城市不存在）时，把错误消息反馈给模型决策函数，让它修正参数后重试。统计每次调用用了多少次重试。每个工具调用最多重试 3 次。
 
-3. **Build a multi-step agent.** Some queries require chaining tool calls: "Read the config file and tell me what model is configured, then search the web for that model's pricing." Implement a loop that runs until the model decides no more tools are needed, passing accumulated results into each decision step. Limit to 10 iterations to prevent infinite loops.
+3. **构建一个多步 agent。** 有些查询需要串联多个工具调用：“读取配置文件，告诉我配置了什么模型，然后去网上搜索这个模型的定价。” 实现一个循环：直到模型判断不再需要更多工具为止，每一步都把累计结果传入下一次决策。限制最多 10 次迭代，以防止无限循环。
 
-4. **Measure tool selection accuracy.** Create 30 test queries with expected tool names. Run your decision function on all 30 and measure what percentage of the time it selects the correct tool. Identify which queries cause the most confusion between tools.
+4. **测量工具选择准确率。** 设计 30 条测试查询，并写出预期工具名。在这 30 条查询上运行你的决策函数，统计它选择正确工具的比例。找出最容易让不同工具混淆的查询类型。
 
-5. **Implement tool call caching.** If the same tool is called with identical arguments within 60 seconds, return the cached result instead of re-executing. Use a dictionary keyed by `(tool_name, frozenset(args.items()))`. Measure cache hit rates across a conversation with 20 queries.
+5. **实现工具调用缓存。** 如果同一工具在 60 秒内以完全相同的参数再次被调用，则直接返回缓存结果，而不是重新执行。使用以 `(tool_name, frozenset(args.items()))` 为键的字典。统计一段 20 条查询的对话中的缓存命中率。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|----------------|----------------------|
-| Function calling | "Tool use" | The model outputs structured JSON describing a function to invoke with specific arguments -- your code executes it, not the model |
-| Tool definition | "Function schema" | A JSON Schema object describing a tool's name, purpose, parameters, and types -- the model reads this to decide when and how to use the tool |
-| Tool choice | "Calling mode" | Controls whether the model must call a tool (required), may call a tool (auto), or must call a specific tool (named) |
-| Parallel calling | "Multi-tool" | The model outputs multiple tool calls in a single turn, reducing round trips -- GPT-4o and Claude both support this |
-| Tool result | "Function output" | The return value from executing a tool, sent back to the model as a message so it can use real data in its response |
-| Argument validation | "Input checking" | Verifying that model-generated arguments match the expected types, ranges, and constraints before executing the tool |
-| MCP | "Tool protocol" | Model Context Protocol -- Anthropic's open standard for exposing tools via servers that any compatible client can discover and call |
-| Agent loop | "ReAct loop" | The iterative cycle of model-decides-tool, code-executes-tool, result-feeds-back until the model has enough information to respond |
-| Tool poisoning | "Prompt injection via tools" | An attack where tool results contain instructions that manipulate the model's behavior -- sanitize all tool outputs |
-| Rate limiting | "Call budget" | Setting a maximum number of tool calls per conversation to prevent infinite loops and runaway API costs |
+| 术语 | 人们常说什么 | 实际含义 |
+|------|-------------|----------|
+| 函数调用 | “工具使用” | 模型输出结构化 JSON，描述要调用哪个函数以及具体参数——执行者是你的代码，不是模型 |
+| 工具定义 | “函数 schema” | 一个 JSON Schema 对象，描述工具的名称、用途、参数和类型——模型据此判断何时以及如何使用工具 |
+| Tool choice | “调用模式” | 控制模型是必须调用工具（required）、可以调用工具（auto），还是必须调用某个指定工具（named） |
+| 并行调用 | “多工具” | 模型在单轮里输出多个工具调用，从而减少往返次数——GPT-4o 和 Claude 都支持 |
+| 工具结果 | “函数输出” | 执行工具后得到的返回值，再以消息形式发回模型，让它能基于真实数据继续回答 |
+| 参数校验 | “输入检查” | 在执行工具前，验证模型生成的参数是否符合预期类型、范围和约束 |
+| MCP | “工具协议” | Model Context Protocol——Anthropic 提出的开放标准，通过 server 暴露工具，任何兼容 client 都能发现并调用 |
+| Agent 循环 | “ReAct 循环” | 模型决定工具 → 代码执行工具 → 结果反馈回模型的迭代循环，直到模型拥有足够信息完成响应 |
+| 工具投毒 | “通过工具做 prompt injection” | 一种攻击方式：工具结果中包含会操纵模型行为的指令——因此所有工具输出都必须清洗 |
+| 限流 | “调用预算” | 为每段对话设置最大工具调用次数，以防止无限循环和 API 成本失控 |
 
-## Further Reading
+## 延伸阅读
 
-- [OpenAI Function Calling Guide](https://platform.openai.com/docs/guides/function-calling) -- the definitive reference for tool use with GPT-4o, including parallel calls, forced calling, and structured arguments
-- [Anthropic Tool Use Guide](https://docs.anthropic.com/en/docs/tool-use) -- Claude's tool use implementation with input_schema, multi-tool responses, and tool_choice configuration
-- [Model Context Protocol Specification](https://modelcontextprotocol.io) -- the open standard for tool interoperability across AI applications, with server/client architecture
-- [Schick et al., 2023 -- "Toolformer: Language Models Can Teach Themselves to Use Tools"](https://arxiv.org/abs/2302.04761) -- the foundational paper on training LLMs to decide when and how to call external tools
-- [Patil et al., 2023 -- "Gorilla: Large Language Model Connected with Massive APIs"](https://arxiv.org/abs/2305.15334) -- fine-tuning LLMs for accurate API calls across 1,645 APIs with hallucination reduction
-- [Berkeley Function Calling Leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html) -- real-time benchmark comparing function calling accuracy across GPT-4o, Claude, Gemini, and open models
-- [Yao et al., "ReAct: Synergizing Reasoning and Acting in Language Models" (ICLR 2023)](https://arxiv.org/abs/2210.03629) -- the Thought-Action-Observation loop that is the outer agent loop around every tool call; where this lesson ends, Phase 14 picks up.
-- [Anthropic — Building effective agents (Dec 2024)](https://www.anthropic.com/research/building-effective-agents) -- five composable patterns (prompt chaining, routing, parallelization, orchestrator-workers, evaluator-optimizer) built from the single tool-use primitive.
+- [OpenAI Function Calling Guide](https://platform.openai.com/docs/guides/function-calling) —— GPT-4o 工具使用的权威参考，包括并行调用、强制调用和结构化参数
+- [Anthropic Tool Use Guide](https://docs.anthropic.com/en/docs/tool-use) —— Claude 的工具使用实现，涵盖 `input_schema`、多工具响应和 `tool_choice` 配置
+- [Model Context Protocol Specification](https://modelcontextprotocol.io) —— AI 应用间实现工具互操作的开放标准，包含 server/client 架构
+- [Schick et al., 2023 -- "Toolformer: Language Models Can Teach Themselves to Use Tools"](https://arxiv.org/abs/2302.04761) —— 关于训练 LLM 自主决定何时、如何调用外部工具的奠基论文
+- [Patil et al., 2023 -- "Gorilla: Large Language Model Connected with Massive APIs"](https://arxiv.org/abs/2305.15334) —— 通过对 1,645 个 API 的准确调用微调 LLM，并减少幻觉
+- [Berkeley Function Calling Leaderboard](https://gorilla.cs.berkeley.edu/leaderboard.html) —— 实时比较 GPT-4o、Claude、Gemini 与开放模型函数调用准确率的榜单
+- [Yao et al., "ReAct: Synergizing Reasoning and Acting in Language Models" (ICLR 2023)](https://arxiv.org/abs/2210.03629) —— 思考-行动-观察循环，它是每一次工具调用外层的 agent 循环；本课在这里结束，第 14 阶段将继续展开。
+- [Anthropic — Building effective agents (Dec 2024)](https://www.anthropic.com/research/building-effective-agents) —— 五种可组合模式（prompt chaining、routing、parallelization、orchestrator-workers、evaluator-optimizer），它们都建立在单一的 tool-use 原语之上。

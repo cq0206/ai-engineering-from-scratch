@@ -1,29 +1,29 @@
-# Audio Generation
+# 音频生成
 
-> Audio is a 1-D signal at 16-48 kHz. A five-second clip is 80-240k samples. No transformer attends to that sequence directly. The solution for every production audio model in 2026 is the same: a neural codec (Encodec, SoundStream, DAC) compresses audio to discrete tokens at 50-75 Hz, and a transformer or diffusion model generates tokens.
+> 音频（audio）是一个 16–48 kHz 的一维信号。一个 5 秒片段就有 8 万到 24 万个采样点。没有哪个 transformer 会直接对这样的序列做 attention。2026 年所有生产级音频模型的解决方案都一样：先用神经编解码器（neural codec，如 Encodec、SoundStream、DAC）把音频压缩成 50–75 Hz 的离散 token，再由 transformer 或 diffusion 模型来生成这些 token。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 6 · 02 (Audio Features), Phase 6 · 04 (ASR), Phase 8 · 06 (DDPM)
-**Time:** ~45 minutes
+**类型：** Build
+**语言：** Python
+**先修要求：** Phase 6 · 02（Audio Features）, Phase 6 · 04（ASR）, Phase 8 · 06（DDPM）
+**时长：** ~45 分钟
 
-## The Problem
+## 问题
 
-Three audio generation tasks:
+三类音频生成任务：
 
-1. **Text-to-speech.** Given text, produce speech. Clean speech is narrow-band and has strong phonetic structure — solved well by transformer-over-tokens. VALL-E (Microsoft), NaturalSpeech 3, ElevenLabs, OpenAI TTS.
-2. **Music generation.** Given a prompt (text, melody, chord progression, genre), produce music. Much broader distribution. MusicGen (Meta), Stable Audio 2.5, Suno v4, Udio, Riffusion.
-3. **Audio effects / sound design.** Given a prompt, produce ambient sound or Foley. AudioGen, AudioLDM 2, Stable Audio Open.
+1. **文本转语音（text-to-speech）。** 给定文本，生成语音。干净语音属于窄带分布，并且具有很强的语音学结构——用 token 上的 transformer 处理，已经解决得很好了。VALL-E（Microsoft）、NaturalSpeech 3、ElevenLabs、OpenAI TTS 都属于这一类。
+2. **音乐生成（music generation）。** 给定提示（文本、旋律、和弦进行、流派），生成音乐。它的分布要宽得多。MusicGen（Meta）、Stable Audio 2.5、Suno v4、Udio、Riffusion 都在这里。
+3. **音频特效 / 声音设计（audio effects / sound design）。** 给定提示，生成环境声或 Foley。AudioGen、AudioLDM 2、Stable Audio Open 都是典型代表。
 
-All three run on the same substrate: neural audio codec + token-AR or diffusion generator.
+这三类任务都建立在同一个底层之上：神经音频编解码器 + token 自回归（token-AR）或 diffusion 生成器。
 
-## The Concept
+## 概念
 
-*Audio generation: codec tokens + transformer or diffusion*
+*音频生成：codec token + transformer 或 diffusion*
 
-### Neural audio codecs
+### 神经音频编解码器
 
-Encodec (Meta, 2022), SoundStream (Google, 2021), Descript Audio Codec (DAC, 2023). A convolutional encoder compresses waveform to a per-timestep vector; residual vector quantization (RVQ) converts each vector to a cascade of K codebook indices. Decoder reverses it. 24 kHz audio at 2 kbps using 8 RVQ codebooks at 75 Hz = 600 tokens/sec.
+Encodec（Meta，2022）、SoundStream（Google，2021）、Descript Audio Codec（DAC，2023）。一个卷积编码器（convolutional encoder）会把波形压缩成按时间步排列的向量；残差向量量化（residual vector quantization, RVQ）再把每个向量转换成由 K 个码本索引组成的级联表示。解码器再把它逆转回来。以 24 kHz 音频为例：如果用 8 个 RVQ 码本，在 75 Hz 下以 2 kbps 编码，那么每秒会产生 600 个 token。
 
 ```
 waveform (16000 samples/sec)
@@ -34,33 +34,33 @@ waveform (16000 samples/sec)
                      └─ RVQ layer 8
 ```
 
-### Two generative paradigms on top
+### 上层的两种生成范式
 
-**Token-autoregressive.** Flatten RVQ tokens into a sequence, run a decoder-only transformer. MusicGen uses "delayed parallel" to emit K codebook streams in parallel with per-stream offsets. VALL-E generates speech tokens from a text prompt + 3-second voice sample.
+**Token 自回归（token-autoregressive）。** 把 RVQ token 展平成一个序列，然后运行 decoder-only transformer。MusicGen 使用“delayed parallel”机制，以带偏移的多流方式并行发射 K 个码本流。VALL-E 则根据文本提示 + 3 秒语音样本来生成语音 token。
 
-**Latent diffusion.** Pack codec tokens as continuous latents or model them with categorical diffusion. Stable Audio 2.5 uses flow matching on continuous audio latents. AudioLDM 2 uses text-to-mel-to-audio diffusion.
+**潜变量 diffusion（latent diffusion）。** 把 codec token 打包成连续潜变量，或者用 categorical diffusion 来建模它们。Stable Audio 2.5 在连续音频潜变量上使用 flow matching。AudioLDM 2 则采用 text-to-mel-to-audio diffusion。
 
-The 2024-2026 trend: flow matching is winning for music (faster inference, cleaner samples) while token-AR still dominates speech because it is naturally causal and streams well.
+2024–2026 年的趋势是：在音乐生成上，flow matching 正在占优（推理更快，样本更干净）；而在语音上，token-AR 依然主导，因为它天然因果、很适合流式输出。
 
-## Production landscape
+## 生产格局
 
-| System | Task | Backbone | Latency |
+| 系统 | 任务 | 主干 | 延迟 |
 |--------|------|----------|---------|
 | ElevenLabs V3 | TTS | Token-AR + neural vocoder | ~300ms first token |
-| OpenAI GPT-4o audio | Full-duplex speech | End-to-end multimodal AR | ~200ms |
-| NaturalSpeech 3 | TTS | Latent flow matching | Non-streaming |
-| Stable Audio 2.5 | Music / SFX | DiT + flow matching on audio latents | ~10s for 1-minute clip |
-| Suno v4 | Full songs | Undisclosed; token-AR suspected | ~30s per song |
-| Udio v1.5 | Full songs | Undisclosed | ~30s per song |
-| MusicGen 3.3B | Music | Token-AR on Encodec 32kHz | Real-time |
-| AudioCraft 2 | Music + SFX | Flow matching | ~5s for 5s clip |
-| Riffusion v2 | Music | Spectrogram diffusion | ~10s |
+| OpenAI GPT-4o audio | 全双工语音 | 端到端多模态 AR | ~200ms |
+| NaturalSpeech 3 | TTS | Latent flow matching | 非流式 |
+| Stable Audio 2.5 | 音乐 / SFX | DiT + flow matching on audio latents | ~10s for 1-minute clip |
+| Suno v4 | 完整歌曲 | 未公开；怀疑是 token-AR | ~30s per song |
+| Udio v1.5 | 完整歌曲 | 未公开 | ~30s per song |
+| MusicGen 3.3B | 音乐 | Encodec 32kHz 上的 token-AR | 实时 |
+| AudioCraft 2 | 音乐 + SFX | Flow matching | ~5s for 5s clip |
+| Riffusion v2 | 音乐 | 频谱图 diffusion | ~10s |
 
-## Build It
+## 动手构建
 
-`code/main.py` simulates the core idea: train a tiny next-token transformer on synthetic "audio token" sequences generated from two distinct "styles" (alternating low and high tokens for style A, monotonic ramp for style B). Condition on style and sample.
+`code/main.py` 模拟了核心思路：在合成的“音频 token”序列上训练一个很小的 next-token transformer。这些序列来自两种截然不同的“风格”：风格 A 是低 token 与高 token 交替，风格 B 是单调爬升斜坡。对风格做条件控制并进行采样。
 
-### Step 1: synthetic audio tokens
+### 第 1 步：合成音频 token
 
 ```python
 def make_tokens(style, length, vocab_size, rng):
@@ -70,75 +70,75 @@ def make_tokens(style, length, vocab_size, rng):
     return [(i * 3) % vocab_size for i in range(length)]
 ```
 
-### Step 2: train a tiny token predictor
+### 第 2 步：训练一个小型 token 预测器
 
-A bigram-style predictor conditioned on style. The point is the pattern: codec tokens → cross-entropy training → autoregressive sampling.
+一个按风格做条件控制的 bigram 风格预测器。重点在于这个模式：codec token → cross-entropy 训练 → 自回归采样。
 
-### Step 3: sample conditionally
+### 第 3 步：按条件采样
 
-Given the style token and a starting token, sample the next token from the predicted distribution. Continue for 20-40 tokens.
+给定风格 token 和一个起始 token，从预测分布中采样下一个 token。持续生成 20–40 个 token。
 
-## Pitfalls
+## 常见陷阱
 
-- **Codec quality caps output quality.** If the codec can't represent a sound faithfully, no amount of generator quality helps. DAC is the current open best.
-- **RVQ error accumulation.** Each RVQ layer models the residual of the previous. Errors on layer 1 propagate. Sampling with temperature 0 on higher layers helps.
-- **Musical structure.** 30 seconds of tokens is 20k+ tokens at 75 Hz. Hard for transformers. MusicGen uses sliding window + prompt continuation; Stable Audio uses shorter clips + crossfading.
-- **Artifacts at boundaries.** Crossfading between generated clips needs careful overlap-add.
-- **Clean-data appetite.** Music generators need tens of thousands of hours of licensed music. The Suno / Udio RIAA lawsuit (2024) brought this to the surface.
-- **Voice cloning ethics.** A 3-second sample plus a text prompt is enough for VALL-E / XTTS / ElevenLabs to clone a voice. Every production model needs abuse detection + opt-out lists.
+- **编解码器质量会限制最终输出质量。** 如果 codec 本身无法忠实表示某种声音，那么生成器再强也无济于事。当前开源里 DAC 是最好的。
+- **RVQ 误差累积。** 每一层 RVQ 都在建模前一层的残差。第一层的误差会向后传播。对高层使用 temperature 0 采样会有帮助。
+- **音乐结构。** 30 秒的 token 序列在 75 Hz 下会超过 2 万个 token。对 transformer 来说很难。MusicGen 使用滑动窗口 + prompt continuation；Stable Audio 使用更短片段 + crossfading。
+- **边界伪影。** 在生成片段之间做 crossfading，需要非常仔细地处理 overlap-add。
+- **对干净数据的饥渴。** 音乐生成器需要数万小时的授权音乐。Suno / Udio 与 RIAA 的诉讼（2024）把这个问题彻底暴露出来了。
+- **声音克隆伦理。** 只要 3 秒样本加一个文本提示，VALL-E / XTTS / ElevenLabs 就足以克隆一段声音。每个生产模型都必须配备滥用检测和 opt-out 列表。
 
-## Use It
+## 如何使用
 
-| Task | 2026 stack |
+| 任务 | 2026 年工具栈 |
 |------|------------|
-| Commercial TTS | ElevenLabs, OpenAI TTS, or Azure Neural |
-| Voice cloning (consent-verified) | XTTS v2 (open) or ElevenLabs Pro |
-| Background music, fast | Stable Audio 2.5 API, Suno, or Udio |
-| Music with lyrics | Suno v4 or Udio v1.5 |
-| Sound effects / Foley | AudioCraft 2, ElevenLabs SFX, or Stable Audio Open |
-| Real-time voice agent | GPT-4o realtime or Gemini Live |
-| Open-weights music research | MusicGen 3.3B, Stable Audio Open 1.0, AudioLDM 2 |
-| Dubbing / translation | HeyGen, ElevenLabs Dubbing |
+| 商业 TTS | ElevenLabs、OpenAI TTS 或 Azure Neural |
+| 声音克隆（已验证同意） | XTTS v2（开源）或 ElevenLabs Pro |
+| 快速生成背景音乐 | Stable Audio 2.5 API、Suno 或 Udio |
+| 生成带歌词的音乐 | Suno v4 或 Udio v1.5 |
+| 音效 / Foley | AudioCraft 2、ElevenLabs SFX 或 Stable Audio Open |
+| 实时语音 Agent | GPT-4o realtime 或 Gemini Live |
+| 开放权重音乐研究 | MusicGen 3.3B、Stable Audio Open 1.0、AudioLDM 2 |
+| 配音 / 翻译 | HeyGen、ElevenLabs Dubbing |
 
-## Ship It
+## 交付
 
-Save `outputs/skill-audio-brief.md`. Skill takes an audio brief (task, duration, style, voice, license) and outputs: model + hosting, prompt format (genre tags, style descriptors, structural markers), codec + generator + vocoder chain, seed protocol, and eval plan (MOS / CLAP score / CER for TTS / user A/B).
+保存 `outputs/skill-audio-brief.md`。这个 Skill 接收一份音频 brief（任务、时长、风格、音色、许可证），并输出：模型 + 托管方案、提示词格式（流派标签、风格描述、结构标记）、codec + generator + vocoder 链路、seed 协议，以及评估方案（MOS / CLAP score / TTS 的 CER / 用户 A/B）。
 
-## Exercises
+## 练习
 
-1. **Easy.** Run `code/main.py` and set style explicitly. Verify the generated sequences match the style's pattern.
-2. **Medium.** Add delayed parallel decoding: simulate 2 streams of tokens that must stay offset by 1 step. Train a joint predictor.
-3. **Hard.** Use HuggingFace transformers to run MusicGen-small locally. Generate a 10-second clip with three different prompts; A/B for style adherence.
+1. **简单。** 运行 `code/main.py` 并显式设置 style。验证生成序列是否符合该风格对应的模式。
+2. **中等。** 添加 delayed parallel decoding：模拟两路 token 流，并要求它们始终保持 1 步偏移。训练一个联合预测器。
+3. **困难。** 使用 HuggingFace transformers 在本地运行 MusicGen-small。用三个不同提示生成一个 10 秒片段；通过 A/B 测试比较风格遵循度。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们常说什么 | 它真正的含义 |
 |------|-----------------|-----------------------|
-| Codec | "Neural compression" | Encoder / decoder for audio; typical output is 50-75 Hz tokens. |
-| RVQ | "Residual VQ" | Cascade of K quantizers; each models the residual of the previous. |
-| Token | "One codec symbol" | Discrete index into a codebook; 1024 or 2048 typical. |
-| Delayed parallel | "Offset codebooks" | Emit K token streams with staggered offsets to reduce sequence length. |
-| Flow matching | "The 2024 win for audio" | Straighter-path alternative to diffusion; faster sampling. |
-| Voice prompt | "3-second sample" | Speaker embedding or token prefix that steers the cloned voice. |
-| Mel spectrogram | "The visual" | Log-magnitude perceptual spectrogram; used by many TTS systems. |
-| Vocoder | "Mel to wave" | Neural component that converts mel spectrograms back to audio. |
+| Codec | “神经压缩（neural compression）” | 音频的编码器 / 解码器；典型输出是 50–75 Hz 的 token。 |
+| RVQ | “Residual VQ” | 由 K 个量化器组成的级联；每一层都建模前一层残差。 |
+| Token | “一个 codec 符号” | 码本中的离散索引；常见大小是 1024 或 2048。 |
+| Delayed parallel | “带偏移的码本” | 以错位偏移发射 K 路 token 流，以缩短序列长度。 |
+| Flow matching | “2024 年音频领域的赢家” | 相比 diffusion 路径更直的替代方案；采样更快。 |
+| Voice prompt | “3 秒样本” | 用于引导克隆音色的 speaker embedding 或 token 前缀。 |
+| Mel spectrogram | “那个可视化图” | 对数幅度的感知频谱图；很多 TTS 系统都会用。 |
+| Vocoder | “Mel 转 wave” | 把 mel spectrogram 转回音频的神经组件。 |
 
-## Production note: audio is a streaming problem
+## 生产说明：音频本质上是流式问题
 
-Audio is the one output modality users expect to arrive *as it is generated*, not all-at-once. In production terms this means TPOT matters (Time Per Output Token) because the user's listening speed is the target throughput — not their reading speed. For 16kHz audio tokenized at ~75 tokens/second (Encodec), the server must generate ≥75 tokens/sec per user to keep playback smooth.
+音频是唯一一种用户期望*边生成边到达*的输出模态，而不是一次性全部返回。从生产角度看，这意味着 TPOT（Time Per Output Token，每个输出 token 的时间）非常重要，因为用户的收听速度才是目标吞吐，而不是阅读速度。对于以 ~75 token/秒（Encodec）进行 token 化的 16kHz 音频，服务端必须为每个用户生成 ≥75 token/秒，播放才能保持流畅。
 
-Two architectural consequences:
+这会带来两个架构层面的后果：
 
-- **Flow-matching audio models cannot stream trivially.** Stable Audio 2.5 and AudioCraft 2 render a fixed clip length in one pass. To stream, you chunk the clip and overlap boundaries — think sliding-window diffusion — adding 100-300ms of latency overhead vs a codec AR model.
+- **Flow-matching 音频模型无法轻易流式化。** Stable Audio 2.5 和 AudioCraft 2 会一次性渲染固定长度的片段。若要流式输出，你需要把片段切块并在边界处重叠——可以理解为滑动窗口 diffusion——这会比 codec AR 模型额外增加 100–300ms 的延迟开销。
 
-If the product is "live voice chat" or "real-time music continuation", pick the codec AR path. If it is "render a 30-second clip on submit", flow-matching wins on quality and total latency.
+如果产品是“实时语音聊天”或“实时音乐续写”，请选择 codec AR 路线。如果产品是“提交后渲染一个 30 秒片段”，那么 flow matching 会在质量和总延迟上更占优。
 
-## Further Reading
+## 延伸阅读
 
-- [Défossez et al. (2022). Encodec: High Fidelity Neural Audio Compression](https://arxiv.org/abs/2210.13438) — the codec standard.
-- [Zeghidour et al. (2021). SoundStream](https://arxiv.org/abs/2107.03312) — the first widely used neural audio codec.
+- [Défossez et al. (2022). Encodec: High Fidelity Neural Audio Compression](https://arxiv.org/abs/2210.13438) — codec 标准。
+- [Zeghidour et al. (2021). SoundStream](https://arxiv.org/abs/2107.03312) — 第一个被广泛采用的神经音频 codec。
 - [Kumar et al. (2023). High-Fidelity Audio Compression with Improved RVQGAN (DAC)](https://arxiv.org/abs/2306.06546) — DAC.
 - [Wang et al. (2023). Neural Codec Language Models are Zero-Shot Text to Speech Synthesizers (VALL-E)](https://arxiv.org/abs/2301.02111) — VALL-E.
 - [Copet et al. (2023). Simple and Controllable Music Generation (MusicGen)](https://arxiv.org/abs/2306.05284) — MusicGen.
 - [Liu et al. (2023). AudioLDM 2: Learning Holistic Audio Generation with Self-supervised Pretraining](https://arxiv.org/abs/2308.05734) — AudioLDM 2.
-- [Stability AI (2024). Stable Audio 2.5](https://stability.ai/news/introducing-stable-audio-2-5) — 2025 text-to-music with flow matching.
+- [Stability AI (2024). Stable Audio 2.5](https://stability.ai/news/introducing-stable-audio-2-5) — 2025 年基于 flow matching 的文生音乐。

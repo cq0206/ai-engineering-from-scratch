@@ -1,45 +1,45 @@
-# Diffusion Transformers & Rectified Flow
+# 扩散 Transformer (Diffusion Transformer) 与校正流 (Rectified Flow)
 
-> The U-Net is not the secret of diffusion. Replace it with a transformer, swap the noise schedule for a straight-line flow, and suddenly you have SD3, FLUX, and every 2026 text-to-image model.
+> U-Net 并不是扩散模型的秘密。把它换成 Transformer，再把噪声日程替换成一条直线流，你就得到了 SD3、FLUX，以及几乎所有 2026 年的文生图模型。
 
-**Type:** Learn + Build
-**Languages:** Python
-**Prerequisites:** Phase 4 Lesson 10 (Diffusion DDPM), Phase 4 Lesson 14 (ViT), Phase 7 Lesson 02 (Self-Attention)
-**Time:** ~75 minutes
+**类型：** 学习 + 构建
+**语言：** Python
+**前置课程：** 第 4 阶段第 10 课（扩散 DDPM）、第 4 阶段第 14 课（ViT）、第 7 阶段第 02 课（自注意力）
+**时长：** ~75 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Trace the evolution from U-Net DDPM (Lesson 10) to Diffusion Transformer (DiT), MMDiT (SD3), and single+double-stream DiT (FLUX)
-- Explain rectified flow: why a straight-line trajectory between noise and data lets models sample in 20 steps instead of 1000
-- Implement a tiny DiT block and a rectified-flow training loop, both under 100 lines
-- Distinguish model variants (SD3, FLUX.1-dev, FLUX.1-schnell, Z-Image, Qwen-Image) by architecture, parameter count, and licensing
+- 梳理从 U-Net DDPM（第 10 课）到 Diffusion Transformer（DiT）、MMDiT（SD3）以及单流 + 双流 DiT（FLUX）的演进路径
+- 解释校正流 (Rectified Flow)：为什么噪声与数据之间的直线轨迹能让模型用 20 步而不是 1000 步进行采样
+- 实现一个不足 100 行的微型 DiT block 和一个不足 100 行的校正流训练循环
+- 通过架构、参数量和许可证区分模型变体（SD3、FLUX.1-dev、FLUX.1-schnell、Z-Image、Qwen-Image）
 
-## The Problem
+## 问题
 
-Lesson 10 built a DDPM with a U-Net denoiser. That recipe dominated 2020-2023: U-Net + beta schedule + noise-prediction loss. It produced Stable Diffusion 1.5 and 2.1 and DALL-E 2.
+第 10 课构建了一个以 U-Net 为去噪器的 DDPM。这个配方在 2020-2023 年间占据统治地位：U-Net + beta schedule + 噪声预测损失。它催生了 Stable Diffusion 1.5、2.1 和 DALL-E 2。
 
-Every 2026 state-of-the-art text-to-image model has moved past it. Stable Diffusion 3, FLUX, SD4, Z-Image, Qwen-Image, Hunyuan-Image — none use a U-Net. They use Diffusion Transformers (DiT). SD3 and FLUX also swap the DDPM noise schedule for rectified flow, which straightens the path from noise to data and enables 1-4 step inference with consistency or distilled variants.
+到了 2026 年，所有最先进的文生图模型都已经越过了这一步。Stable Diffusion 3、FLUX、SD4、Z-Image、Qwen-Image、Hunyuan-Image——没有一个再使用 U-Net。它们改用 Diffusion Transformer（DiT）。SD3 和 FLUX 还把 DDPM 的噪声日程替换成校正流，这让从噪声到数据的路径更接近直线，并通过 consistency 或 distilled 变体实现了 1-4 步推理。
 
-The shift matters because it is the reason diffusion-based image generation became controllable, prompt-accurate (SD3/SD4 solved text rendering), and production-fast. Understanding DiT + rectified flow is understanding the 2026 generative-image stack.
+这种转变很重要，因为它正是扩散式图像生成变得可控、提示词准确（SD3/SD4 解决了文本渲染问题）、并且足够快到可用于生产的原因。理解 DiT + 校正流，就等于理解 2026 年的生成式图像技术栈。
 
-## The Concept
+## 概念
 
-### From U-Net to transformer
+### 从 U-Net 到 Transformer
 
 ```mermaid
 flowchart LR
     subgraph UNET["DDPM U-Net (2020)"]
-        U1["Conv encoder"] --> U2["Conv bottleneck"] --> U3["Conv decoder"]
+        U1["卷积编码器"] --> U2["卷积瓶颈"] --> U3["卷积解码器"]
     end
     subgraph DIT["DiT (2023)"]
-        D1["Patch embed"] --> D2["Transformer blocks"] --> D3["Unpatchify"]
+        D1["Patch 嵌入"] --> D2["Transformer 块"] --> D3["Unpatchify"]
     end
     subgraph MMDIT["MMDiT (SD3, 2024)"]
-        M1["Text stream"] --> M3["Joint attention<br/>(separate weights per modality)"]
-        M2["Image stream"] --> M3
+        M1["文本流"] --> M3["联合注意力<br/>(每种模态使用独立权重)"]
+        M2["图像流"] --> M3
     end
     subgraph FLUX["FLUX (2024)"]
-        F1["Double-stream blocks<br/>(text + image separate)"] --> F2["Single-stream blocks<br/>(concat + shared weights)"]
+        F1["双流块<br/>(文本 + 图像分离)"] --> F2["单流块<br/>(拼接 + 共享权重)"]
     end
 
     style UNET fill:#e5e7eb,stroke:#6b7280
@@ -48,79 +48,79 @@ flowchart LR
     style FLUX fill:#dcfce7,stroke:#16a34a
 ```
 
-- **DiT** (Peebles & Xie, 2023) — replace the U-Net with a ViT-like transformer on latent patches. Conditioning via adaptive layer norm (AdaLN).
-- **MMDiT** (SD3, Esser et al., 2024) — two streams with separate weights for text and image tokens that share a joint attention.
-- **FLUX** (Black Forest Labs, 2024) — first N blocks double-stream like SD3, later blocks concatenate and share weights (single-stream) for efficiency at higher depth.
-- **Z-Image** (2025) — an efficient single-stream DiT at 6B parameters that challenges "scale at all costs".
+- **DiT**（Peebles & Xie，2023）—— 用类似 ViT 的 Transformer 处理 latent patch，替换掉 U-Net。条件注入通过自适应层归一化 (adaptive layer norm, AdaLN) 完成。
+- **MMDiT**（SD3，Esser et al.，2024）—— 文本 token 和图像 token 使用两条独立权重流，但共享同一个联合注意力。
+- **FLUX**（Black Forest Labs，2024）—— 前 N 个 block 像 SD3 一样是双流结构，后续 block 会拼接后共享权重（单流），以在更深层数下提升效率。
+- **Z-Image**（2025）—— 一个参数量为 6B 的高效单流 DiT，挑战了“只要规模够大就行”的思路。
 
-### Rectified flow in one paragraph
+### 用一段话理解校正流
 
-DDPM defines the forward process as a noisy SDE where `x_t` is increasingly corrupted. The learned reverse is a second SDE, solved by 1000 small steps.
+DDPM 将前向过程定义为一个带噪声的随机微分方程（SDE），其中 `x_t` 会被逐步污染。学习到的反向过程也是另一个 SDE，需要用 1000 个很小的步长来求解。
 
-Rectified flow defines a **straight-line** interpolation between clean data and pure noise:
+校正流则在干净数据和纯噪声之间定义了一条**直线**插值：
 
 ```
 x_t = (1 - t) * x_0 + t * epsilon,     t in [0, 1]
 ```
 
-Train a network to predict the velocity `v_theta(x_t, t) = epsilon - x_0` — the forward direction along the straight-line path from clean data to noise (`dx_t/dt`). During sampling, you integrate this velocity backward to step from noise toward data. The resulting ODE is much closer to a straight line, so far fewer integration steps are needed to sample.
+训练一个网络去预测速度 `v_theta(x_t, t) = epsilon - x_0`——也就是沿着从干净数据到噪声这条直线路径的前进方向（`dx_t/dt`）。在采样时，再把这个速度反向积分，让模型从噪声朝数据一步步走回去。得到的常微分方程 (ODE) 与直线更接近，因此采样所需的积分步数要少得多。
 
-SD3 calls this **Rectified Flow Matching**. FLUX, Z-Image, and most 2026 models use the same objective. Typical inference: 20-30 Euler steps (deterministic) vs 50+ DDIM steps in the old DDPM regime. Distilled / turbo / schnell / LCM variants take it down to 1-4 steps.
+SD3 把这件事称为**Rectified Flow Matching**。FLUX、Z-Image 和大多数 2026 年模型都使用相同目标。典型推理配置是 20-30 个 Euler 步（确定性），而旧 DDPM 时代往往需要 50+ 个 DDIM 步。蒸馏 / turbo / schnell / LCM 变体则可以进一步降到 1-4 步。
 
-### AdaLN conditioning
+### AdaLN 条件注入
 
-DiTs condition on timestep and class/text via **adaptive layer norm**: predict `scale` and `shift` from the conditioning vector and apply them after LayerNorm. Much cleaner than FiLM-style modulation in U-Nets and the default in every modern DiT.
+DiT 通过**自适应层归一化**来接收时间步和类别/文本条件：从条件向量预测 `scale` 和 `shift`，并在 LayerNorm 之后应用。相比 U-Net 中的 FiLM 风格调制，这种方式更干净，也是所有现代 DiT 的默认做法。
 
 ```
 cond -> MLP -> (scale, shift, gate)
 norm(x) * (1 + scale) + shift, then residual add * gate
 ```
 
-### Text encoders in SD3 and FLUX
+### SD3 和 FLUX 中的文本编码器
 
-- **SD3** uses three text encoders: two CLIP models + T5-XXL. Embeddings concatenated and fed to the image stream as text conditioning.
-- **FLUX** uses one CLIP-L + T5-XXL.
-- **Qwen-Image / Z-Image** variants use their own in-house text encoders aligned with their base LLMs.
+- **SD3** 使用三个文本编码器：两个 CLIP 模型 + T5-XXL。它们的嵌入会拼接起来，并作为文本条件送入图像流。
+- **FLUX** 使用一个 CLIP-L + T5-XXL。
+- **Qwen-Image / Z-Image** 变体使用它们自研、并与基础 LLM 对齐的文本编码器。
 
-The text encoder is a big part of why SD3/FLUX reason about prompts so much better than SD1.5. T5-XXL alone is 4.7B params.
+文本编码器是 SD3/FLUX 在提示词理解上远强于 SD1.5 的一个重要原因。仅 T5-XXL 就有 4.7B 参数。
 
-### Classifier-free guidance still holds
+### 无分类器引导 (classifier-free guidance, CFG) 仍然适用
 
-Rectified flow changes the sampler, not the conditioning. Classifier-free guidance (drop text with 10% probability during training, mix conditional and unconditional predictions at inference) works identically with rectified flow. Most 2026 models use guidance scale 3.5-5 — lower than SD1.5's 7.5 because rectified-flow models follow prompts more tightly by default.
+校正流改变的是采样器，而不是条件机制。无分类器引导（训练时以 10% 概率丢弃文本，在推理时混合条件与无条件预测）在校正流中完全照常工作。大多数 2026 年模型使用的 guidance scale 在 3.5-5 之间——低于 SD1.5 的 7.5，因为校正流模型默认就会更紧密地遵循提示词。
 
-### Consistency, Turbo, Schnell, LCM
+### Consistency、Turbo、Schnell、LCM
 
-Four names for the same idea: distil a slow many-step model into a fast few-step model.
+这四个名字本质上说的是同一件事：把一个慢速、多步的模型蒸馏成一个快速、少步的模型。
 
-- **LCM (Latent Consistency Model)** — train a student that predicts the final `x_0` from any intermediate `x_t` in one step.
-- **SDXL Turbo / FLUX schnell** — 1-4 step models trained with adversarial diffusion distillation.
-- **SD Turbo** — OpenAI-style Consistency Models adapted to latent diffusion.
+- **LCM（Latent Consistency Model）** —— 训练一个学生模型，让它从任意中间态 `x_t` 一步预测最终的 `x_0`。
+- **SDXL Turbo / FLUX schnell** —— 用对抗式扩散蒸馏训练得到的 1-4 步模型。
+- **SD Turbo** —— 适配到 latent diffusion 的 OpenAI 风格一致性模型 (Consistency Models)。
 
-Production serving of any new model ships both a "full quality" checkpoint and a "turbo / schnell" variant. Schnell ("fast" in German, Black Forest Labs' convention) runs in 1-4 steps and fits real-time pipelines.
+任何新模型做生产部署时，都会同时提供一个“全质量”checkpoint 和一个 “turbo / schnell” 变体。Schnell（德语“快速”，也是 Black Forest Labs 的命名习惯）只需 1-4 步，适合实时流水线。
 
-### Model landscape in 2026
+### 2026 年的模型版图
 
-| Model | Size | Architecture | License |
+| 模型 | 规模 | 架构 | 许可证 |
 |-------|------|--------------|---------|
 | Stable Diffusion 3 Medium | 2B | MMDiT | SAI Community |
 | Stable Diffusion 3.5 Large | 8B | MMDiT | SAI Community |
-| FLUX.1-dev | 12B | Double + Single Stream DiT | non-commercial |
-| FLUX.1-schnell | 12B | same, distilled | Apache 2.0 |
-| FLUX.2 | — | iterated FLUX.1 | mixed |
-| Z-Image | 6B | S3-DiT (Scalable Single-Stream) | permissive |
-| Qwen-Image | ~20B | DiT + Qwen text tower | Apache 2.0 |
-| Hunyuan-Image-3.0 | ~80B | DiT | research |
-| SD4 Turbo | 3B | DiT + distillation | SAI Commercial |
+| FLUX.1-dev | 12B | 双流 + 单流 DiT | 非商用 |
+| FLUX.1-schnell | 12B | 同上，蒸馏版 | Apache 2.0 |
+| FLUX.2 | — | FLUX.1 的迭代版 | 混合 |
+| Z-Image | 6B | S3-DiT（Scalable Single-Stream） | 宽松 |
+| Qwen-Image | ~20B | DiT + Qwen 文本塔 | Apache 2.0 |
+| Hunyuan-Image-3.0 | ~80B | DiT | 研究 |
+| SD4 Turbo | 3B | DiT + 蒸馏 | SAI Commercial |
 
-FLUX.1-schnell is the 2026 open-source default. Z-Image is the efficiency leader. FLUX.2 and SD4 are the current quality tips.
+FLUX.1-schnell 是 2026 年开源模型的默认选择。Z-Image 是效率领先者。FLUX.2 和 SD4 则代表当前质量上限。
 
-### Why this phase shift matters
+### 为什么这个阶段性转变如此重要
 
-DDPM + U-Net worked. DiT + rectified flow works **better, faster, and scales more cleanly**. The transition parallels the one from RNNs to transformers in NLP: both architectures solved the same problem, but transformers scaled and now dominate. Every 2026 paper on image, video, or 3D generation uses a DiT-shaped denoiser and usually a rectified flow objective. U-Net DDPM is now primarily pedagogical (Lesson 10).
+DDPM + U-Net 可行。DiT + 校正流则**更好、更快，而且扩展起来更干净**。这种转变与 NLP 从 RNN 迁移到 Transformer 十分类似：两种架构都能解决同一个问题，但 Transformer 更容易扩展，因此最终占据主导。2026 年几乎所有关于图像、视频或 3D 生成的论文都使用 DiT 形状的去噪器，而且通常采用校正流目标。U-Net DDPM 现在主要是教学用途（第 10 课）。
 
-## Build It
+## 动手实现
 
-### Step 1: A DiT block with AdaLN
+### 第 1 步：带 AdaLN 的 DiT block
 
 ```python
 import torch
@@ -167,9 +167,9 @@ class DiTBlock(nn.Module):
         return x
 ```
 
-`AdaLNZero` starts as an identity mapping because its MLP weights are initialised to zero. Training nudges the block away from identity; this stabilises deep transformer diffusion models dramatically.
+`AdaLNZero` 之所以一开始等价于恒等映射，是因为它的 MLP 权重初始化为零。训练会逐渐把整个 block 从恒等状态推开；这会极大提升深层 Transformer 扩散模型的稳定性。
 
-### Step 2: A tiny DiT
+### 第 2 步：一个小型 DiT
 
 ```python
 def timestep_embedding(t, dim):
@@ -214,7 +214,7 @@ class TinyDiT(nn.Module):
         return x
 ```
 
-### Step 3: Rectified flow training
+### 第 3 步：校正流训练
 
 ```python
 import torch.nn.functional as F
@@ -237,11 +237,11 @@ def rectified_flow_train_step(model, x0, optimizer, device):
     return loss.item()
 ```
 
-Compare with DDPM's noise-prediction loss (Lesson 10): same structure, different target. Instead of predicting the noise `epsilon`, we predict the **velocity** `epsilon - x_0`, which points from data to noise along the straight-line interpolation.
+把它和 DDPM 的噪声预测损失（第 10 课）对比一下：结构相同，目标不同。我们不再预测噪声 `epsilon`，而是预测**速度** `epsilon - x_0`，它指向直线插值中从数据到噪声的方向。
 
-### Step 4: Euler sampler
+### 第 4 步：Euler 采样器
 
-Rectified flow is an ODE. Euler's method is the simplest and, for a well-trained rectified-flow model, nearly as accurate as higher-order solvers at 20+ steps.
+校正流是一个 ODE。Euler 方法最简单，而且对于训练良好的校正流模型，在 20+ 步时它几乎和高阶求解器一样准确。
 
 ```python
 @torch.no_grad()
@@ -257,9 +257,9 @@ def rectified_flow_sample(model, shape, steps=20, device="cpu"):
     return x
 ```
 
-20 steps. On a trained model this produces samples comparable to 1000-step DDPM.
+20 步。对于一个训练好的模型，这就能生成可与 1000 步 DDPM 相媲美的样本。
 
-### Step 5: End-to-end smoke test
+### 第 5 步：端到端冒烟测试
 
 ```python
 import numpy as np
@@ -278,11 +278,11 @@ def synthetic_blobs(num=200, size=16, seed=0):
     return torch.from_numpy(out)
 ```
 
-Train a `TinyDiT` on this with rectified flow. After 500 steps, sampled outputs should look like faint blobs of colour.
+在这份数据上用校正流训练一个 `TinyDiT`。训练 500 步后，采样输出应该看起来像一些淡淡的彩色斑点。
 
-## Use It
+## 使用
 
-For real image generation with FLUX / SD3 / Z-Image, `diffusers` ships every one with a unified API:
+如果你要用 FLUX / SD3 / Z-Image 做真实图像生成，`diffusers` 为它们全部提供了统一 API：
 
 ```python
 from diffusers import FluxPipeline, StableDiffusion3Pipeline
@@ -302,9 +302,9 @@ out = pipe(
 out.save("surf.png")
 ```
 
-Three lines. `FLUX.1-schnell` in four steps. Swap the model id for `black-forest-labs/FLUX.1-dev` for higher quality at 20-30 steps with CFG.
+三行代码。四步跑完 `FLUX.1-schnell`。如果想在 20-30 步、配合 CFG 获得更高质量，就把模型 id 换成 `black-forest-labs/FLUX.1-dev`。
 
-For SD3:
+对于 SD3：
 
 ```python
 pipe = StableDiffusion3Pipeline.from_pretrained(
@@ -314,37 +314,37 @@ pipe = StableDiffusion3Pipeline.from_pretrained(
 out = pipe(prompt, guidance_scale=3.5, num_inference_steps=28).images[0]
 ```
 
-## Ship It
+## 交付
 
-This lesson produces:
+本课会产出：
 
-- `outputs/prompt-dit-model-picker.md` — picks between SD3, FLUX.1-dev, FLUX.1-schnell, Z-Image, SD4 Turbo given quality, latency, and license constraints.
-- `outputs/skill-rectified-flow-trainer.md` — writes a complete training loop for rectified flow with AdaLN DiT and Euler sampling.
+- `outputs/prompt-dit-model-picker.md` —— 一个会根据质量、延迟和许可证约束，在 SD3、FLUX.1-dev、FLUX.1-schnell、Z-Image、SD4 Turbo 之间做选择的提示词。
+- `outputs/skill-rectified-flow-trainer.md` —— 一个能写出完整校正流训练循环（含 AdaLN DiT 和 Euler 采样）的 skill。
 
-## Exercises
+## 练习
 
-1. **(Easy)** Train the TinyDiT above on the synthetic blob dataset for 500 steps. Compare samples produced with 10, 20, and 50 Euler steps.
-2. **(Medium)** Add text conditioning by concatenating a learned class embedding to the time embedding (10 blob "classes" by colour). Sample with class 0, 5, and 9 and verify colours match.
-3. **(Hard)** Compute the Fréchet distance (FID proxy) between generated samples from rectified-flow and DDPM versions of the same-size network trained on the same data for the same number of steps. Report which converges faster.
+1. **（简单）** 在上面的合成斑点数据集上训练 TinyDiT 500 步。比较使用 10、20 和 50 个 Euler 步产生的样本。
+2. **（中等）** 通过把一个学习到的类别嵌入拼接到时间嵌入上，加入文本条件（用颜色区分的 10 类 blob）。分别用类 0、5、9 采样，并验证颜色是否匹配。
+3. **（困难）** 对同尺寸网络分别训练一个校正流版本和一个 DDPM 版本，在相同数据上用相同步数训练。计算它们生成样本之间的 Fréchet 距离（FID proxy），并报告哪个收敛更快。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们怎么说 | 实际含义 |
 |------|----------------|----------------------|
-| DiT | "Diffusion transformer" | Transformer that replaces the U-Net as the diffusion denoiser; operates on patchified latents |
-| AdaLN | "Adaptive layer norm" | Timestep/text conditioning via learned scale, shift, gate applied after LayerNorm; standard in every modern DiT |
-| MMDiT | "Multi-modal DiT (SD3)" | Separate weight streams for text and image tokens that share a joint self-attention |
-| Single-stream / double-stream | "FLUX trick" | First N blocks double-stream (separate weights per modality), later blocks single-stream (concat + shared weights) for efficiency |
-| Rectified flow | "Straight-line noise-to-data" | Linear interpolation between data and noise; network predicts velocity; fewer ODE steps needed at inference |
-| Velocity target | "epsilon - x_0" | The regression target in rectified flow; points from clean data to noise |
-| CFG guidance | "classifier-free guidance" | Mix conditional and unconditional predictions; still used in rectified-flow models |
-| Schnell / turbo / LCM | "1-4 step distillation" | Small-step variants distilled from full-quality models; production real-time |
+| DiT | “扩散 Transformer” | 用于替代 U-Net 作为扩散去噪器的 Transformer；工作在 patch 化的 latent 上 |
+| AdaLN | “自适应层归一化” | 通过学习到的 scale、shift、gate 在 LayerNorm 后注入时间步/文本条件；是所有现代 DiT 的标准做法 |
+| MMDiT | “多模态 DiT（SD3）” | 文本 token 和图像 token 使用独立权重流，但共享联合自注意力 |
+| Single-stream / double-stream | “FLUX 技巧” | 前 N 个 block 是双流（每种模态独立权重），后续 block 为单流（concat + 共享权重）以提升效率 |
+| Rectified flow | “从噪声到数据的直线路径” | 在数据与噪声之间做线性插值；网络预测速度；推理时所需 ODE 步数更少 |
+| Velocity target | “epsilon - x_0” | 校正流中的回归目标；指向从干净数据到噪声的方向 |
+| CFG guidance | “classifier-free guidance” | 混合条件和无条件预测；在校正流模型中依然使用 |
+| Schnell / turbo / LCM | “1-4 步蒸馏” | 从全质量模型蒸馏得到的少步版本；适合生产实时场景 |
 
-## Further Reading
+## 延伸阅读
 
-- [Scalable Diffusion Models with Transformers (Peebles & Xie, 2023)](https://arxiv.org/abs/2212.09748) — the DiT paper
-- [Scaling Rectified Flow Transformers (Esser et al., SD3 paper)](https://arxiv.org/abs/2403.03206) — MMDiT and rectified-flow at scale
-- [FLUX.1 model card and technical report (Black Forest Labs)](https://huggingface.co/black-forest-labs/FLUX.1-dev) — double + single-stream details
-- [Z-Image: Efficient Image Generation Foundation Model (2025)](https://arxiv.org/html/2511.22699v1) — single-stream DiT at 6B
-- [Elucidating the Design Space of Diffusion (Karras et al., 2022)](https://arxiv.org/abs/2206.00364) — the reference for every diffusion design trade-off
-- [Latent Consistency Models (Luo et al., 2023)](https://arxiv.org/abs/2310.04378) — how LCM-LoRA gives you 4-step inference
+- [Scalable Diffusion Models with Transformers (Peebles & Xie, 2023)](https://arxiv.org/abs/2212.09748) —— DiT 论文
+- [Scaling Rectified Flow Transformers (Esser et al., SD3 paper)](https://arxiv.org/abs/2403.03206) —— 大规模 MMDiT 与校正流
+- [FLUX.1 model card and technical report (Black Forest Labs)](https://huggingface.co/black-forest-labs/FLUX.1-dev) —— 双流 + 单流细节
+- [Z-Image: Efficient Image Generation Foundation Model (2025)](https://arxiv.org/html/2511.22699v1) —— 6B 参数的单流 DiT
+- [Elucidating the Design Space of Diffusion (Karras et al., 2022)](https://arxiv.org/abs/2206.00364) —— 各类扩散设计权衡的参考文献
+- [Latent Consistency Models (Luo et al., 2023)](https://arxiv.org/abs/2310.04378) —— LCM-LoRA 如何实现 4 步推理

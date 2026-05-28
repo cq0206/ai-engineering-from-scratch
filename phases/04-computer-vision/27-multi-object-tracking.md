@@ -1,42 +1,42 @@
-# Multi-Object Tracking & Video Memory
+# 多目标跟踪 (Multi-Object Tracking) 与视频记忆 (Video Memory)
 
-> Tracking is detection plus association. Detect every frame. Match this frame's detections to last frame's tracks by ID.
+> 跟踪就是检测加关联 (association)。在每一帧都做检测。把当前帧的检测结果按 ID 匹配到上一帧的轨迹。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 4 Lesson 06 (YOLO Detection), Phase 4 Lesson 08 (Mask R-CNN), Phase 4 Lesson 24 (SAM 3)
-**Time:** ~60 minutes
+**类型：** 构建
+**语言：** Python
+**前置要求：** 第 4 阶段第 06 课（YOLO Detection）、第 4 阶段第 08 课（Mask R-CNN）、第 4 阶段第 24 课（SAM 3）
+**时间：** ~60 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Distinguish tracking-by-detection from query-based tracking and name the algorithm families (SORT, DeepSORT, ByteTrack, BoT-SORT, SAM 2 memory tracker, SAM 3.1 Object Multiplex)
-- Implement IoU + Hungarian assignment from scratch for classic tracking-by-detection
-- Explain SAM 2's memory bank and why it handles occlusion better than IoU-based association
-- Read the three tracking metrics (MOTA, IDF1, HOTA) and pick which one matters for a given use case
+- 区分基于检测的跟踪 (tracking-by-detection) 与基于查询的跟踪 (query-based tracking)，并说出这些算法家族（SORT、DeepSORT、ByteTrack、BoT-SORT、SAM 2 memory tracker、SAM 3.1 Object Multiplex）
+- 从零实现经典基于检测跟踪所需的 IoU + 匈牙利分配 (Hungarian assignment)
+- 解释 SAM 2 的记忆库 (memory bank)，以及为什么它比基于 IoU 的关联更能处理遮挡
+- 读懂三个跟踪指标（MOTA、IDF1、HOTA），并根据具体使用场景判断哪个最重要
 
-## The Problem
+## 问题
 
-A detector tells you where the objects are in a single frame. A tracker tells you which detection in frame `t` is the same object as a detection in frame `t-1`. Without that, you cannot count objects crossing a line, follow a ball through an occlusion, or know "car #4 has been in the lane for 8 seconds."
+检测器只能告诉你单帧中物体在哪里。跟踪器则告诉你：在帧 `t` 中的哪个检测，与帧 `t-1` 中的哪个检测其实是同一个物体。没有它，你就无法统计有多少物体跨过一条线、在遮挡中持续跟住一个球，或者知道“4 号车已经在这个车道里待了 8 秒”。
 
-Tracking is essential to every video-facing product: sports analytics, surveillance, autonomous driving, medical video analysis, wildlife monitoring, wordmark counting. The core building blocks are shared: a per-frame detector, a motion model (Kalman filter or something richer), an association step (Hungarian algorithm on IoU / cosine / learned features), and a track lifecycle (birth, update, death).
+跟踪对所有面向视频的产品都至关重要：体育分析、监控、自动驾驶、医学视频分析、野生动物监测、文字标记计数。核心构件都是共享的：逐帧检测器、运动模型（Kalman filter 或更强的东西）、关联步骤（在 IoU / 余弦相似度 / 学习特征上运行匈牙利算法），以及轨迹生命周期（生成、更新、终止）。
 
-2026 brought two new patterns: **SAM 2 memory-based tracking** (feature-memory instead of motion-model association) and **SAM 3.1 Object Multiplex** (shared memory for many instances of the same concept). This lesson walks the classical stack first, then the memory-based approach.
+2026 年带来了两种新模式：**基于 SAM 2 记忆的跟踪**（用特征记忆代替运动模型关联）以及 **SAM 3.1 Object Multiplex**（为同一概念的多个实例共享记忆）。本课先走一遍经典栈，再介绍基于记忆的方法。
 
-## The Concept
+## 概念
 
-### Tracking-by-detection
+### 基于检测的跟踪
 
 ```mermaid
 flowchart LR
-    F1["Frame t"] --> DET["Detector"] --> D1["Detections at t"]
-    PREV["Tracks up to t-1"] --> PREDICT["Motion predict<br/>(Kalman)"]
-    PREDICT --> PRED["Predicted tracks at t"]
-    D1 --> ASSOC["Hungarian assignment<br/>(IoU / cosine / motion)"]
+    F1["帧 t"] --> DET["检测器"] --> D1["t 时刻的检测结果"]
+    PREV["截至 t-1 的轨迹"] --> PREDICT["运动预测<br/>(Kalman)"]
+    PREDICT --> PRED["t 时刻的预测轨迹"]
+    D1 --> ASSOC["匈牙利分配<br/>(IoU / cosine / motion)"]
     PRED --> ASSOC
-    ASSOC --> UPDATE["Update matched tracks"]
-    ASSOC --> NEW["Birth new tracks"]
-    ASSOC --> DEAD["Age unmatched tracks; delete after N"]
-    UPDATE --> NEXT["Tracks at t"]
+    ASSOC --> UPDATE["更新已匹配轨迹"]
+    ASSOC --> NEW["生成新轨迹"]
+    ASSOC --> DEAD["未匹配轨迹老化；N 后删除"]
+    UPDATE --> NEXT["t 时刻的轨迹"]
     NEW --> NEXT
     DEAD --> NEXT
 
@@ -45,60 +45,60 @@ flowchart LR
     style NEXT fill:#dcfce7,stroke:#16a34a
 ```
 
-Every tracker you will encounter in 2026 is a variation on this loop. The differences:
+你在 2026 年会遇到的每个跟踪器，都是这个循环的某种变体。差别在于：
 
-- **SORT** (2016): Kalman filter + IoU Hungarian. Simple, fast, no appearance model.
-- **DeepSORT** (2017): SORT + a CNN-based appearance feature per track (ReID embedding). Handles crossings better.
-- **ByteTrack** (2021): associates low-confidence detections as a second stage; no appearance features needed but top performer on MOT17.
-- **BoT-SORT** (2022): Byte + camera motion compensation + ReID.
-- **StrongSORT / OC-SORT** — ByteTrack descendants with better motion and appearance.
+- **SORT**（2016）：Kalman filter + IoU Hungarian。简单、快速、没有外观模型。
+- **DeepSORT**（2017）：SORT + 每条轨迹一个基于 CNN 的外观特征（ReID embedding）。更能处理交叉穿行。
+- **ByteTrack**（2021）：把低置信度检测作为第二阶段来关联；不需要外观特征，但在 MOT17 上表现顶尖。
+- **BoT-SORT**（2022）：Byte + 相机运动补偿 + ReID。
+- **StrongSORT / OC-SORT** —— ByteTrack 的后代，拥有更好的运动与外观建模。
 
-### Kalman filter in one paragraph
+### 用一段话理解 Kalman filter
 
-A Kalman filter maintains a per-track state `(x, y, w, h, dx, dy, dw, dh)` with a covariance. At each frame, **predict** the state using a constant-velocity model, then **update** with the matched detection. The update trusts the detection more when the predict uncertainty is high. This gives smooth trajectories and the ability to continue a track through a short occlusion (1-5 frames).
+Kalman filter 会为每条轨迹维护一个状态 `(x, y, w, h, dx, dy, dw, dh)` 及其协方差。每一帧先用恒速模型对状态做**预测**，再用匹配到的检测做**更新**。当预测不确定性很高时，更新会更相信检测结果。这带来了平滑轨迹，也让系统可以在短暂遮挡（1-5 帧）期间继续维持轨迹。
 
-Every classical tracker uses a Kalman filter in the motion-prediction step.
+每个经典跟踪器都会在运动预测步骤里使用 Kalman filter。
 
-### The Hungarian algorithm
+### 匈牙利算法
 
-Given a `M x N` cost matrix (tracks x detections), find the one-to-one assignment that minimises total cost. Cost is usually `1 - IoU(track_bbox, detection_bbox)` or negative cosine similarity of appearance features. Runtime is O((M+N)^3); for M, N up to ~1000 it is fast enough in Python via `scipy.optimize.linear_sum_assignment`.
+给定一个 `M x N` 的代价矩阵（轨迹 x 检测），找出使总代价最小的一对一分配。代价通常是 `1 - IoU(track_bbox, detection_bbox)`，或者外观特征的负余弦相似度。运行时间为 O((M+N)^3)；当 M、N 不超过约 1000 时，通过 `scipy.optimize.linear_sum_assignment` 在 Python 中已经足够快。
 
-### ByteTrack's key idea
+### ByteTrack 的关键思想
 
-Standard trackers drop low-confidence detections (&lt; 0.5). ByteTrack keeps them around as **second-stage candidates**: after matching tracks to high-confidence detections, unmatched tracks try to match low-confidence detections with a slightly looser IoU threshold. Recovers short occlusions, ID switches near crowds.
+标准跟踪器会丢掉低置信度检测（&lt; 0.5）。ByteTrack 会保留它们作为**第二阶段候选**：在轨迹先与高置信度检测匹配之后，未匹配的轨迹会再尝试与低置信度检测匹配，并使用稍微宽松一点的 IoU 阈值。这能恢复短遮挡，并减少人群附近的 ID switch。
 
-### SAM 2 memory-based tracking
+### 基于 SAM 2 记忆的跟踪
 
-SAM 2 handles video by keeping a **memory bank** of per-instance spatio-temporal features. Given a prompt (click, box, text) on one frame, it encodes the instance into memory. On subsequent frames, the memory is cross-attended against the new frame's features, and the decoder produces a mask for the same instance in the new frame.
+SAM 2 处理视频的方式，是维护一个按实例组织的时空特征**记忆库**。给定某一帧上的提示（点击、框、文本），它会把该实例编码进记忆。之后在每一帧里，记忆会与新帧特征做交叉注意力，解码器则输出该实例在新帧中的掩码。
 
-No Kalman filter, no Hungarian assignment. The association is implicit in the memory-attention operation.
+没有 Kalman filter，也没有匈牙利分配。关联被隐式地包含在记忆注意力操作之中。
 
-Pros:
-- Robust to large occlusions (memory carries instance identity across many frames).
-- Open-vocabulary when combined with SAM 3's text prompts.
-- Works without a separate motion model.
+优点：
+- 对大幅遮挡很稳健（记忆能在多帧之间携带实例身份）。
+- 与 SAM 3 的文本提示结合时支持开放词汇。
+- 不需要单独的运动模型。
 
-Cons:
-- Slower than ByteTrack for many-object tracking.
-- Memory bank grows; limits the context window.
+缺点：
+- 对很多目标做跟踪时，比 ByteTrack 更慢。
+- 记忆库会增长；上下文窗口因此受限。
 
 ### SAM 3.1 Object Multiplex
 
-Prior SAM 2 / SAM 3 tracking keeps a separate memory bank per instance. For 50 objects, 50 memory banks. Object Multiplex (March 2026) collapses them into one shared memory with **per-instance query tokens**. Cost scales sub-linearly in number of instances.
+以往的 SAM 2 / SAM 3 跟踪会为每个实例维护一个独立记忆库。50 个物体，就有 50 个记忆库。Object Multiplex（2026 年 3 月）把这些记忆库折叠成一个共享记忆，再配合**按实例区分的查询 token**。其代价相对于实例数量呈次线性增长。
 
-Multiplex is the new default for crowd tracking in 2026: concert crowds, warehouse workers, traffic intersections.
+Multiplex 已经成为 2026 年人群跟踪的默认方案：演唱会人群、仓库工人、交通路口。
 
-### Three metrics to know
+### 三个你必须知道的指标
 
-- **MOTA (Multi-Object Tracking Accuracy)** — 1 - (FN + FP + ID switches) / GT. Weighted by error type; a single metric that conflates detection and association failures.
-- **IDF1 (ID F1)** — harmonic mean of ID precision and recall. Focuses specifically on how well each ground-truth track keeps its ID over time. Better than MOTA for ID-switch-sensitive tasks.
-- **HOTA (Higher Order Tracking Accuracy)** — decomposes into detection accuracy (DetA) and association accuracy (AssA). The community standard since 2020; most comprehensive.
+- **MOTA（Multi-Object Tracking Accuracy）** —— 1 - (FN + FP + ID switches) / GT。它按错误类型加权，是一个把检测失败和关联失败混在一起的单一指标。
+- **IDF1（ID F1）** —— ID precision 与 recall 的调和平均。它专门关注每条真实轨迹在时间上保持 ID 的能力。对那些对 ID switch 很敏感的任务，它比 MOTA 更好。
+- **HOTA（Higher Order Tracking Accuracy）** —— 将结果拆分为检测准确率（DetA）和关联准确率（AssA）。自 2020 年以来，它已经成为社区标准，也是最全面的指标。
 
-For surveillance (who is who): IDF1 is what you report. For sports analytics (counting passes): HOTA. For general academic comparison: HOTA.
+对于监控（谁是谁）：你应该报告 IDF1。对于体育分析（统计传球）：HOTA。对于一般学术对比：HOTA。
 
-## Build It
+## 构建它
 
-### Step 1: IoU-based cost matrix
+### 第 1 步：基于 IoU 的代价矩阵
 
 ```python
 import numpy as np
@@ -122,9 +122,9 @@ def bbox_iou(a, b):
     return inter / np.clip(union, 1e-8, None)
 ```
 
-### Step 2: Minimal SORT-style tracker
+### 第 2 步：最小化的 SORT 风格跟踪器
 
-Fixed constant-velocity Kalman omitted for brevity — we use a simple IoU association here; in production the Kalman predict is essential. The `sort` Python package provides the full version.
+为简洁起见，这里省略了固定恒速的 Kalman；我们只使用简单的 IoU 关联。在生产环境里，Kalman 预测是必不可少的。`sort` Python 包提供了完整版本。
 
 ```python
 from scipy.optimize import linear_sum_assignment
@@ -182,9 +182,9 @@ class SimpleTracker:
         return [(t.id, t.bbox) for t in self.tracks]
 ```
 
-60 lines. Takes per-frame detections, returns per-frame track IDs. Real systems add the Kalman predict, ByteTrack's second-stage re-match, and appearance features.
+60 行代码。输入逐帧检测，输出逐帧轨迹 ID。真实系统会再加上 Kalman 预测、ByteTrack 的第二阶段重匹配，以及外观特征。
 
-### Step 3: Synthetic trajectory test
+### 第 3 步：合成轨迹测试
 
 ```python
 def synthetic_frames(num_frames=20, num_objects=3, H=240, W=320, seed=0):
@@ -206,9 +206,9 @@ for f, dets in enumerate(synthetic_frames()):
     tracks = tracker.step(dets, f)
 ```
 
-Three objects moving in straight lines should keep their IDs across all 20 frames.
+三个做直线运动的物体，应该在全部 20 帧中都保持自己的 ID。
 
-### Step 4: ID-switch metric
+### 第 4 步：ID-switch 指标
 
 ```python
 def count_id_switches(tracks_per_frame, gt_per_frame):
@@ -235,56 +235,56 @@ def count_id_switches(tracks_per_frame, gt_per_frame):
     return switches
 ```
 
-This is a simplified IDF1-adjacent metric: count how many times a ground-truth object changes its assigned predicted track ID. Real MOTA / IDF1 / HOTA tooling lives in `py-motmetrics` and `TrackEval`.
+这是一个简化版、接近 IDF1 的指标：统计一个真实物体被分配到的预测轨迹 ID 改变了多少次。真正的 MOTA / IDF1 / HOTA 工具链可以在 `py-motmetrics` 和 `TrackEval` 中找到。
 
-## Use It
+## 使用它
 
-Production trackers in 2026:
+2026 年生产中常见的跟踪器：
 
-- `ultralytics` — YOLOv8 + ByteTrack / BoT-SORT built-in. `results = model.track(source, tracker="bytetrack.yaml")`. The default.
-- `supervision` (Roboflow) — ByteTrack wrappers plus annotation utilities.
-- SAM 2 / SAM 3.1 — memory-based tracking via `processor.track()`.
-- Custom stack: detector (YOLOv8 / RT-DETR) + `sort-tracker` / `OC-SORT` / `StrongSORT`.
+- `ultralytics` —— 内置 YOLOv8 + ByteTrack / BoT-SORT。`results = model.track(source, tracker="bytetrack.yaml")`。默认选择。
+- `supervision`（Roboflow）—— ByteTrack 封装器加标注工具。
+- SAM 2 / SAM 3.1 —— 通过 `processor.track()` 做基于记忆的跟踪。
+- 自定义栈：检测器（YOLOv8 / RT-DETR）+ `sort-tracker` / `OC-SORT` / `StrongSORT`。
 
-Picking:
+如何选择：
 
-- Pedestrians / cars / boxes at 30+ fps: **ByteTrack with ultralytics**.
-- Many instances of one class in a crowd: **SAM 3.1 Object Multiplex**.
-- Heavy occlusions with identifiable appearance: **DeepSORT / StrongSORT** (ReID features).
-- Sports / complex interactions: **BoT-SORT** or learned trackers (MOTRv3).
+- 行人 / 汽车 / 箱子，且需要 30+ fps：**使用 ultralytics 的 ByteTrack**。
+- 在拥挤场景中跟踪同一类别的大量实例：**SAM 3.1 Object Multiplex**。
+- 遮挡严重且外观可区分：**DeepSORT / StrongSORT**（ReID 特征）。
+- 体育 / 复杂交互：**BoT-SORT** 或学习式跟踪器（MOTRv3）。
 
-## Ship It
+## 交付它
 
-This lesson produces:
+本课会产出：
 
-- `outputs/prompt-tracker-picker.md` — picks SORT / ByteTrack / BoT-SORT / SAM 2 / SAM 3.1 given scene type, occlusion patterns, and latency budget.
-- `outputs/skill-mot-evaluator.md` — writes a complete evaluation harness for MOTA / IDF1 / HOTA against ground-truth tracks.
+- `outputs/prompt-tracker-picker.md` —— 根据场景类型、遮挡模式和延迟预算，在 SORT / ByteTrack / BoT-SORT / SAM 2 / SAM 3.1 之间做选择。
+- `outputs/skill-mot-evaluator.md` —— 编写一个完整的评估框架，对照真实轨迹计算 MOTA / IDF1 / HOTA。
 
-## Exercises
+## 练习
 
-1. **(Easy)** Run the synthetic tracker above with 3, 10, and 30 objects. Report ID-switch count in each case. Identify where the simple IoU-only association starts to fail.
-2. **(Medium)** Add a constant-velocity Kalman predict step before association. Show that short (2-3 frame) occlusions no longer cause ID switches.
-3. **(Hard)** Integrate SAM 2's memory-based tracker (via `transformers`) as an alternative tracker backend. Run both SimpleTracker and SAM 2 on a 30-second clip of a crowd and compare ID-switch counts, manually labelling ground-truth IDs for 5 salient people.
+1. **（简单）** 用 3、10、30 个物体运行上面的合成跟踪器。分别报告 ID-switch 数量。找出纯 IoU 关联从哪里开始失效。
+2. **（中等）** 在关联之前加入一个恒速 Kalman 预测步骤。展示短时遮挡（2-3 帧）不再导致 ID switch。
+3. **（困难）** 将 SAM 2 的基于记忆跟踪器（通过 `transformers`）集成为另一种跟踪后端。在一段 30 秒的人群视频上同时运行 SimpleTracker 和 SAM 2，并为 5 个显著人物手工标注真实 ID，比较两者的 ID-switch 数量。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|----------------|----------------------|
-| Tracking-by-detection | "Detect then associate" | Per-frame detector + Hungarian assignment on IoU / appearance |
-| Kalman filter | "Motion predict" | Linear dynamics + covariance for smooth track predictions and occlusion handling |
-| Hungarian algorithm | "Optimal assignment" | Solves the minimum-cost bipartite matching problem; `scipy.optimize.linear_sum_assignment` |
-| ByteTrack | "Low-confidence second pass" | Re-match unmatched tracks to low-confidence detections to recover short occlusions |
-| DeepSORT | "SORT + appearance" | Adds a ReID feature for cross-frame matching; better for ID preservation |
-| Memory bank | "SAM 2 trick" | Per-instance spatio-temporal features stored across frames; cross-attention replaces explicit association |
-| Object Multiplex | "SAM 3.1 shared memory" | Single shared memory with per-instance queries for fast many-object tracking |
-| HOTA | "Modern tracking metric" | Decomposes into detection and association accuracy; community standard |
+| 术语 | 人们常说 | 实际含义 |
+|------|----------|----------|
+| 基于检测的跟踪 | “先检测再关联” | 逐帧检测器 + 在 IoU / 外观上做匈牙利分配 |
+| Kalman filter | “运动预测” | 线性动力学 + 协方差，用于平滑轨迹预测和处理遮挡 |
+| 匈牙利算法 | “最优分配” | 求解最小代价二分图匹配问题；`scipy.optimize.linear_sum_assignment` |
+| ByteTrack | “低置信度第二遍” | 将未匹配轨迹与低置信度检测重匹配，以恢复短遮挡 |
+| DeepSORT | “SORT + 外观” | 为跨帧匹配加入 ReID 特征；更能保持 ID |
+| 记忆库 | “SAM 2 的技巧” | 跨帧存储的按实例时空特征；用交叉注意力代替显式关联 |
+| Object Multiplex | “SAM 3.1 共享记忆” | 单个共享记忆加按实例查询，用于快速多目标跟踪 |
+| HOTA | “现代跟踪指标” | 拆分检测准确率和关联准确率；社区标准 |
 
-## Further Reading
+## 延伸阅读
 
-- [SORT (Bewley et al., 2016)](https://arxiv.org/abs/1602.00763) — the minimal tracking-by-detection paper
-- [DeepSORT (Wojke et al., 2017)](https://arxiv.org/abs/1703.07402) — adds appearance feature
-- [ByteTrack (Zhang et al., 2022)](https://arxiv.org/abs/2110.06864) — low-confidence second pass
-- [BoT-SORT (Aharon et al., 2022)](https://arxiv.org/abs/2206.14651) — camera motion compensation
-- [HOTA (Luiten et al., 2020)](https://arxiv.org/abs/2009.07736) — decomposed tracking metric
-- [SAM 2 video segmentation (Meta, 2024)](https://ai.meta.com/sam2/) — memory-based tracker
-- [SAM 3.1 Object Multiplex (Meta, March 2026)](https://ai.meta.com/blog/segment-anything-model-3/)
+- [SORT (Bewley et al., 2016)](https://arxiv.org/abs/1602.00763) —— 最小化的基于检测跟踪论文
+- [DeepSORT (Wojke et al., 2017)](https://arxiv.org/abs/1703.07402) —— 加入外观特征
+- [ByteTrack (Zhang et al., 2022)](https://arxiv.org/abs/2110.06864) —— 低置信度第二阶段
+- [BoT-SORT (Aharon et al., 2022)](https://arxiv.org/abs/2206.14651) —— 相机运动补偿
+- [HOTA (Luiten et al., 2020)](https://arxiv.org/abs/2009.07736) —— 分解式跟踪指标
+- [SAM 2 video segmentation (Meta, 2024)](https://ai.meta.com/sam2/) —— 基于记忆的跟踪器
+- [SAM 3.1 Object Multiplex (Meta, March 2026)](https://ai.meta.com/blog/segment-anything-model-3/) —— 共享记忆的多目标跟踪

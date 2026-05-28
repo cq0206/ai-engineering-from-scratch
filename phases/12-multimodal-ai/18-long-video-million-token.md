@@ -1,135 +1,135 @@
-# Long-Video Understanding at Million-Token Context
+# 百万 Token 上下文中的长视频理解
 
-> A 1-hour 4K video at 24 FPS, patched and embedded, produces on the order of 60 million tokens. A 2-hour podcast episode transcribed is 30,000 tokens. A full Blu-ray feature film, even compressed with aggressive pooling, is hundreds of thousands of tokens. Google's Gemini 1.5 (March 2024) opened this era with a 10-million-token context, doing reliable needle-in-a-haystack recall over hour-long videos. LWM (Liu et al., February 2024) showed ring attention's scaling path. LongVILA and Video-XL scaled ingestion further. VideoAgent swapped raw context for agentic retrieval. Each approach is a different trade-off on compute, recall, and engineering complexity. This lesson reads them side by side.
+> 一段 1 小时、4K、24 FPS 的视频，在切成 patch 并做嵌入后，大约会产生 6000 万个 token。一段 2 小时的播客，转录后约为 30000 个 token。一整部蓝光电影，即便经过激进池化压缩，也仍然有数十万 token。Google 的 Gemini 1.5（2024 年 3 月）以 1000 万 token 上下文开启了这个时代，能够在长达数小时的视频中可靠完成“大海捞针（needle-in-a-haystack）”式召回。LWM（Liu 等，2024 年 2 月）展示了 ring attention 的扩展路径。LongVILA 和 Video-XL 进一步扩大了可摄入规模。VideoAgent 则用 agentic retrieval 替代了原始上下文。每条路线都是在计算成本、召回率和工程复杂度之间做不同权衡。本课会把它们并排讲清楚。
 
-**Type:** Build
-**Languages:** Python (stdlib, needle-in-haystack simulator + agentic-retrieval router)
-**Prerequisites:** Phase 12 · 17 (video temporal tokens)
-**Time:** ~180 minutes
+**类型：** 构建
+**语言：** Python（stdlib，needle-in-haystack simulator + agentic-retrieval router）
+**先修要求：** 第 12 阶段 · 17（video temporal tokens）
+**时间：** ~180 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Compute total visual-token counts for long-form video at varying FPS and pooling.
-- Explain the three scaling paths: brute context (Gemini 1.5), ring attention (LWM), token compression (LongVILA / Video-XL).
-- Compare raw-context video VLMs vs agentic-retrieval video VLMs (VideoAgent) on accuracy and latency.
-- Design a needle-in-a-haystack test for a 30-minute video and measure recall at a specific minute.
+- 计算长视频在不同 FPS 与池化设置下的总视觉 token 数。
+- 解释三条扩展路径：蛮力上下文（brute context，Gemini 1.5）、ring attention（LWM）、token 压缩（LongVILA / Video-XL）。
+- 比较原始上下文视频 VLM 与 agentic retrieval 视频 VLM（VideoAgent）在准确率和延迟上的差异。
+- 为一段 30 分钟视频设计大海捞针测试，并测量特定分钟位置上的召回率。
 
-## The Problem
+## 问题
 
-A single frame of Qwen2.5-VL-sized patches at 384 native resolution is ~729 tokens. At 3x3 pooling that's 81 tokens per frame. A 30-minute clip at 1 FPS = 1800 frames = 145,800 tokens. Doable by 2025 open VLMs, tight. At 2 FPS, 291,600 tokens — only the biggest contexts fit.
+在 Qwen2.5-VL 级别的 patch 设置下，一帧 384 原生分辨率图像约有 729 个 token。若做 3x3 池化，则每帧为 81 个 token。一段 30 分钟视频，按 1 FPS 采样 = 1800 帧 = 145800 个 token。到 2025 年的开源 VLM 还算可做，但已经很紧。若升到 2 FPS，则是 291600 个 token——只有最大上下文模型才能装下。
 
-A 2-hour movie at 1 FPS is 583k tokens. Beyond most 2026 open models; requires Gemini 2.5 Pro or pooling more aggressively.
+一部 2 小时电影在 1 FPS 下有 58.3 万个 token。已经超出大多数 2026 年开源模型的能力；需要 Gemini 2.5 Pro，或者更激进的池化。
 
-Three scaling paths emerged.
+于是出现了三条扩展路径。
 
-## The Concept
+## 概念
 
-### Path 1: Brute context (Gemini 1.5, Claude Opus)
+### 路径 1：蛮力上下文（Gemini 1.5、Claude Opus）
 
-Throw hardware at the problem. Scale context to millions of tokens, process everything in one forward pass.
+直接往问题上砸硬件。把上下文扩展到数百万 token，在一次前向传播中处理全部内容。
 
-Gemini 1.5 Pro launched with 1M tokens; Gemini 1.5 Ultra to 10M; Gemini 2.5 Pro in 2026 does hours of video reliably. The paper (arXiv:2403.05530) documents needle-in-a-haystack recall at 99.7% up to ~9.5M tokens.
+Gemini 1.5 Pro 发布时支持 100 万 token；Gemini 1.5 Ultra 达到 1000 万；到 2026 年，Gemini 2.5 Pro 已能稳定处理数小时视频。论文（arXiv:2403.05530）记录了其在约 950 万 token 以内的大海捞针召回率高达 99.7%。
 
-Engineering: a custom attention implementation with memory hierarchy (local + global + sparse) plus MoE expert routing for long-context efficiency. Not published in full detail. Not open-source.
+工程实现上：使用自定义注意力实现，结合内存层次结构（local + global + sparse）以及 MoE expert routing，以提升长上下文效率。完整细节并未公开。也不是开源实现。
 
-### Path 2: Ring attention (LWM, LongVILA)
+### 路径 2：Ring attention（LWM、LongVILA）
 
-Ring attention distributes long sequences across devices in a "ring" where each device holds a chunk. Attention across the full sequence happens by each device sending its chunk to the next in a ring pattern, computing partial attention, and aggregating.
+Ring attention 会把长序列分布到多个设备上，形成一个“环”，每个设备持有其中一个片段。跨全序列的注意力通过一种环形模式完成：每个设备把自己的片段发送给下一个设备，计算部分注意力，再进行聚合。
 
-LWM (Liu et al., 2024) trained a 1M-token context model this way. Training compute scales linearly with context, not quadratically — the quadratic hit on attention is amortized across the ring's devices.
+LWM（Liu 等，2024）就是用这种方式训练了一个 100 万 token 上下文模型。训练计算量随上下文长度线性增长，而不是二次增长——注意力的二次成本被分摊到了环中的多个设备上。
 
-LongVILA (arXiv:2408.10188) adapted the pattern to VLMs. 1400-frame videos at 192 tokens per frame = 268k context, trained with ring attention across 8-way parallelism.
+LongVILA（arXiv:2408.10188）把这种模式适配到了 VLM。1400 帧视频、每帧 192 个 token = 26.8 万上下文，并通过 8 路并行上的 ring attention 完成训练。
 
-### Path 3: Token compression (Video-XL, LongVA)
+### 路径 3：Token 压缩（Video-XL、LongVA）
 
-Cheaper than brute context: compress aggressively before the LLM sees the sequence.
+比蛮力上下文更便宜：在序列送入 LLM 之前先做激进压缩。
 
-Video-XL (arXiv:2409.14485) uses a visual summary token: each clip of N frames produces a single "summary" token that attends over the N. At inference, the LLM sees one summary token per clip, drastically shrinking the context.
+Video-XL（arXiv:2409.14485）使用视觉摘要 token（visual summary token）：每个由 N 帧组成的片段会生成一个“摘要” token，该 token 对这 N 帧进行注意力聚合。推理时，LLM 每个片段只看到一个摘要 token，从而大幅压缩上下文。
 
-LongVA extends LLM context from 200k to 2M with a "long context transfer" technique. Train on long-context text, transfer to long-context video via shared representation.
+LongVA 则通过“long context transfer”技术，把 LLM 上下文从 20 万扩展到 200 万。先在长上下文文本上训练，再通过共享表示把能力迁移到长上下文视频。
 
-Token compression trades off recall at specific timestamps for scalability. The model knows generally what happened but sometimes misses exact frames.
+Token 压缩是在“特定时间戳召回”与“可扩展性”之间做交换。模型大致知道发生了什么，但有时会错过精确帧位置。
 
-### Path 4: Agentic retrieval (VideoAgent)
+### 路径 4：Agentic retrieval（VideoAgent）
 
-Do not feed the full video to the LLM. Instead, treat the video as a database and use an LLM to query it.
+不要把整段视频都喂给 LLM。相反，把视频当作数据库，并让 LLM 去查询它。
 
-VideoAgent (arXiv:2403.10517):
+VideoAgent（arXiv:2403.10517）：
 
-1. LLM reads the question.
-2. LLM asks a retrieval tool for relevant clips ("show me segments with a cat").
-3. Tool returns matching clip timestamps.
-4. LLM reads those clips via a VLM.
-5. LLM composes the answer or asks follow-up queries.
+1. LLM 读取问题。
+2. LLM 请求一个检索工具来找相关片段（“show me segments with a cat”）。
+3. 工具返回匹配片段的时间戳。
+4. LLM 通过 VLM 读取这些片段。
+5. LLM 组合答案，或者继续发起追问。
 
-This is the LLM-as-agent pattern applied to long video. Cheaper inference (only relevant clips encoded), harder engineering (retrieval quality becomes the bottleneck).
+这就是把“LLM 作为 agent”的模式应用到长视频上。推理更便宜（只编码相关片段），但工程更复杂（检索质量会成为瓶颈）。
 
-### Needle-in-a-haystack benchmarks
+### 大海捞针基准
 
-The standard long-context test: insert a unique visual or textual marker at a random point in the video, then ask a query that requires recalling it.
+标准长上下文测试是：在视频的随机位置插入一个独特的视觉或文本标记，然后提出一个必须回忆该标记的问题。
 
-Metric: Recall@k across video length and marker position.
+指标：跨视频长度和标记位置的 Recall@k。
 
-Gemini 2.5 Pro scores >99% recall at up to 90-minute videos. Open 72B models (Qwen2.5-VL-72B, InternVL3-78B) score ~85-90% at 30 minutes and degrade past 60.
+Gemini 2.5 Pro 在最长 90 分钟视频上可达到 >99% 的召回。开源 72B 模型（Qwen2.5-VL-72B、InternVL3-78B）在 30 分钟时约为 85-90%，超过 60 分钟后开始退化。
 
-VideoAgent can match or beat raw-context models at 2+ hours because retrieval hits the needle if the tool is good.
+VideoAgent 在 2 小时以上内容上可能追平甚至超过原始上下文模型，因为只要工具足够好，检索就能命中“针”。
 
-### Which path to pick
+### 该选哪条路径
 
-For a 15-minute clip at frontier accuracy: open 72B + native context usually works. Pick Qwen2.5-VL-72B.
+如果你要在 15 分钟片段上追求前沿精度：开源 72B + 原生上下文通常就够。选 Qwen2.5-VL-72B。
 
-For 30-minute to 1-hour content: LongVILA or Video-XL for open; Gemini 2.5 Pro for closed. The quality bar matters — frontier goes closed.
+如果内容长度在 30 分钟到 1 小时：开源可选 LongVILA 或 Video-XL；闭源可选 Gemini 2.5 Pro。质量门槛很重要——前沿表现通常还是闭源更强。
 
-For 2+ hour content: VideoAgent or similar retrieval patterns. Alternatively, summarize to smaller chunks and feed hierarchical summaries.
+如果内容长度在 2 小时以上：选 VideoAgent 或类似检索模式。或者先做分层摘要，再把更小块的摘要送入模型。
 
-### 2026 production pattern
+### 2026 年生产模式
 
-In practice, production long-video pipelines are hybrid:
+在实践中，生产级长视频流水线通常是混合式的：
 
-1. Run dynamic-FPS sampling + aggressive pooling on the entire video (get a 100k-token global representation).
-2. Pass to a 72B VLM for a global summary.
-3. If user asks detailed questions, run agentic retrieval using the summary as an index.
+1. 对整段视频运行动态 FPS 采样 + 激进池化（得到一个 10 万 token 级的全局表示）。
+2. 把它送入 72B VLM，生成全局摘要。
+3. 如果用户提出细节问题，再利用这个摘要作为索引，执行 agentic retrieval。
 
-This combines brute-context for global understanding and retrieval for local detail.
+这样就把“蛮力上下文”的全局理解和“检索模式”的局部细节结合起来了。
 
-## Use It
+## 使用它
 
-`code/main.py`:
+`code/main.py`：
 
-- Computes token budgets for videos from 1 minute to 3 hours at varying FPS + pooling.
-- Simulates a needle-in-a-haystack run: inject a marker at a random timestamp, ask a question, score recall.
-- Includes an agentic-retrieval router simulator that picks specific clips to feed to a downstream VLM.
+- 计算从 1 分钟到 3 小时视频在不同 FPS + 池化设置下的 token 预算。
+- 模拟一次大海捞针运行：在随机时间戳注入标记、提出问题、评估召回。
+- 包含一个 agentic-retrieval router 模拟器，用于挑选特定片段送入下游 VLM。
 
-Run the budget table and feel the scale gap.
+运行预算表，亲自感受规模鸿沟。
 
-## Ship It
+## 交付它
 
-This lesson produces `outputs/skill-long-video-strategy-planner.md`. Given a video duration and query complexity, it picks between brute-context, compression, and agentic retrieval, and computes the latency + quality expectations.
+本课会生成 `outputs/skill-long-video-strategy-planner.md`。给定视频时长和查询复杂度，它会在 brute-context、compression 与 agentic retrieval 之间做选择，并计算延迟与质量预期。
 
-## Exercises
+## 练习
 
-1. A 45-minute lecture at 1 FPS, 81 tokens per frame. Total tokens? Fits in which models' contexts?
+1. 一段 45 分钟讲座，1 FPS、每帧 81 个 token。总 token 数是多少？能装进哪些模型的上下文？
 
-2. Design a needle-in-a-haystack test: at what minute do you inject the marker, and what is the exact query format?
+2. 设计一个大海捞针测试：你会在第几分钟注入标记？查询格式具体是什么？
 
-3. Compare brute-context Qwen2.5-VL-72B (80k context) to VideoAgent (Claude 3.5 + retrieval) on a 1-hour video. Which wins on recall? Which wins on latency?
+3. 比较 brute-context Qwen2.5-VL-72B（80k context）与 VideoAgent（Claude 3.5 + retrieval）在 1 小时视频上的表现。谁的召回更高？谁的延迟更低？
 
-4. Ring attention's memory cost scales linearly in sequence length and linearly in device count. Explain why and what fails if you drop the ring-rotation phase.
+4. Ring attention 的内存成本会随序列长度线性增长，也会随设备数量线性增长。解释原因，并说明如果去掉 ring-rotation 阶段会先出什么问题。
 
-5. Read Gemini 1.5 Section 5 on needle-in-a-haystack. What did the paper find about recall at the 1M vs 10M token boundary?
+5. 阅读 Gemini 1.5 第 5 节关于大海捞针的内容。论文在 100 万与 1000 万 token 边界上，对召回率有什么发现？
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|-----------------|------------------------|
-| Brute context | "Just more tokens" | Scale LLM context to millions of tokens; process everything in one pass |
-| Ring attention | "LWM-style parallel" | Distributed attention pattern where each device holds a chunk and rotates |
-| Token compression | "Summary tokens" | Reduce per-clip tokens via a learned compressor before the LLM |
-| Needle-in-haystack | "NIH test" | Insert a unique marker at a random point, ask model to recall it at test time |
-| Agentic retrieval | "LLM as query planner" | LLM asks a retrieval tool for relevant clips, reads them via a VLM, composes answer |
-| VideoAgent | "Retrieval pattern for video" | Canonical agentic-retrieval design: question -> tool -> clip -> answer |
+| 术语 | 人们怎么说 | 实际含义 |
+|------|-----------------|----------|
+| Brute context | “就是加更多 token” | 把 LLM 上下文扩展到数百万 token；一遍处理全部内容 |
+| Ring attention | “LWM 风格并行” | 一种分布式注意力模式：每个设备持有一个片段并轮转计算 |
+| Token compression | “摘要 token” | 在送入 LLM 之前，用学习到的压缩器减少每个片段的 token 数 |
+| Needle-in-haystack | “NIH test” | 在随机位置插入唯一标记，并在测试时要求模型回忆它 |
+| Agentic retrieval | “LLM 作为查询规划器” | LLM 请求检索工具找相关片段，经 VLM 读取后再组合答案 |
+| VideoAgent | “视频检索模式” | 典型的 agentic-retrieval 设计：question -> tool -> clip -> answer |
 
-## Further Reading
+## 延伸阅读
 
 - [Gemini Team — Gemini 1.5 (arXiv:2403.05530)](https://arxiv.org/abs/2403.05530)
 - [Liu et al. — LWM / RingAttention (arXiv:2402.08268)](https://arxiv.org/abs/2402.08268)

@@ -1,47 +1,47 @@
-# SAM 3 & Open-Vocabulary Segmentation
+# SAM 3 与开放词汇分割 (Open-Vocabulary Segmentation)
 
-> Give a model a text prompt and an image and get masks for every matching object. SAM 3 made that a single forward pass.
+> 给模型一个文本提示和一张图像，它就能返回所有匹配对象的 mask。SAM 3 把这件事变成了一次前向传播。
 
-**Type:** Use + Build
-**Languages:** Python
-**Prerequisites:** Phase 4 Lesson 07 (U-Net), Phase 4 Lesson 08 (Mask R-CNN), Phase 4 Lesson 18 (CLIP)
-**Time:** ~60 minutes
+**类型：** 使用 + 构建
+**语言：** Python
+**前置课程：** 第 4 阶段第 07 课（U-Net）、第 4 阶段第 08 课（Mask R-CNN）、第 4 阶段第 18 课（CLIP）
+**时长：** ~60 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Distinguish SAM (visual prompts only), Grounded SAM / SAM 2 (detector + SAM), and SAM 3 (native text prompts via Promptable Concept Segmentation)
-- Explain the SAM 3 architecture: shared backbone + image detector + memory-based video tracker + presence head + decoupled detector-tracker design
-- Use Hugging Face `transformers` SAM 3 integration for text-prompted detection, segmentation, and video tracking
-- Pick between SAM 3, Grounded SAM 2, YOLO-World, and SAM-MI based on latency, concept complexity, and deployment target
+- 区分 SAM（只支持视觉提示）、Grounded SAM / SAM 2（检测器 + SAM）以及 SAM 3（通过可提示概念分割 (Promptable Concept Segmentation, PCS) 原生支持文本提示）
+- 解释 SAM 3 的架构：共享骨干网络 + 图像检测器 + 基于记忆的视频跟踪器 + 存在头 (presence head) + 解耦的检测器-跟踪器 (detector-tracker) 设计
+- 使用 Hugging Face `transformers` 中的 SAM 3 集成来完成基于文本提示的检测、分割和视频跟踪
+- 根据延迟、概念复杂度和部署目标，在 SAM 3、Grounded SAM 2、YOLO-World 和 SAM-MI 之间做选择
 
-## The Problem
+## 问题
 
-The 2023 SAM was a visual-prompt-only model: you click a point or draw a box and it returns a mask. For "give me all the oranges in this photo" you needed a detector (Grounding DINO) to produce boxes, then SAM to segment each. Grounded SAM turned this into a pipeline, but it was a cascade of two frozen models with inevitable error accumulation.
+2023 年的 SAM 只支持视觉提示：你点击一个点或者画一个框，它就返回一个 mask。如果你想做“把这张照片里所有橙子都给我找出来”，就需要先用 detector（Grounding DINO）产出框，再交给 SAM 去分割每一个实例。Grounded SAM 把它变成了一条流水线，但本质上仍然是两个冻结模型级联，因此不可避免会累积误差。
 
-SAM 3 (Meta, Nov 2025, ICLR 2026) collapsed the cascade. It accepts a short noun phrase or an image exemplar as prompt and returns all matching masks and instance IDs in a single forward pass. That is **Promptable Concept Segmentation (PCS)**. Combined with the March 2026 Object Multiplex update (SAM 3.1), it tracks multiple instances of the same concept through video efficiently.
+SAM 3（Meta，2025 年 11 月，ICLR 2026）把这条级联链路压缩掉了。它接收一个简短名词短语或一个图像示例作为提示，并在一次前向传播中返回图像里所有匹配的 mask 和实例 ID。这就是**可提示概念分割 (Promptable Concept Segmentation, PCS)**。再加上 2026 年 3 月的 Object Multiplex 更新（SAM 3.1），它还能够高效地在视频中跟踪同一概念的多个实例。
 
-This lesson is about the structural shift this represents. 2D seg, detection, and text-image grounding have merged into one model. The production question is no longer "which pipeline do I chain together" but "which promptable model handles my use case end-to-end."
+这节课关注的是这种结构性转变。2D 分割、检测和文本-图像 grounding 已经合并为一个模型。生产中的问题不再是“我要把哪些流水线串起来”，而是“哪个可提示模型能端到端处理我的用例”。
 
-## The Concept
+## 概念
 
-### The three generations
+### 三代系统
 
 ```mermaid
 flowchart LR
     subgraph SAM1["SAM (2023)"]
-        A1["Image + point/box prompt"] --> A2["ViT encoder"] --> A3["Mask decoder"]
-        A3 --> A4["Mask for that prompt"]
+        A1["图像 + 点/框提示"] --> A2["ViT 编码器"] --> A3["掩码解码器"]
+        A3 --> A4["该提示对应的掩码"]
     end
     subgraph GSAM2["Grounded SAM 2 (2024)"]
-        B1["Text"] --> B2["Grounding DINO"] --> B3["Boxes"] --> B4["SAM 2"] --> B5["Masks + tracking"]
-        B6["Image"] --> B2
+        B1["文本"] --> B2["Grounding DINO"] --> B3["框"] --> B4["SAM 2"] --> B5["掩码 + 跟踪"]
+        B6["图像"] --> B2
         B6 --> B4
     end
     subgraph SAM3["SAM 3 (2025)"]
-        C1["Text OR image exemplar"] --> C2["Shared backbone"]
-        C3["Image"] --> C2
-        C2 --> C4["Image detector + memory tracker<br/>+ presence head"]
-        C4 --> C5["All matching masks<br/>+ instance IDs"]
+        C1["文本 或 图像示例"] --> C2["共享骨干网络"]
+        C3["图像"] --> C2
+        C2 --> C4["图像检测器 + 记忆跟踪器<br/>+ 存在头"]
+        C4 --> C5["所有匹配的掩码<br/>+ 实例 ID"]
     end
 
     style SAM1 fill:#e5e7eb,stroke:#6b7280
@@ -49,66 +49,66 @@ flowchart LR
     style SAM3 fill:#dcfce7,stroke:#16a34a
 ```
 
-### Promptable Concept Segmentation
+### 可提示概念分割
 
-A "concept prompt" is a short noun phrase (`"yellow school bus"`, `"striped red umbrella"`, `"hand holding a mug"`) or an image exemplar. The model returns segmentation masks for every instance in the image that matches the concept, plus a unique instance ID per match.
+“概念提示”是一个简短名词短语（`"yellow school bus"`、`"striped red umbrella"`、`"hand holding a mug"`）或一个图像示例。模型会返回图像中所有与该概念匹配实例的分割 mask，以及每个匹配实例对应的唯一实例 ID。
 
-This differs from classic visual-prompt SAM in three ways:
+这和经典的视觉提示式 SAM 有三点不同：
 
-1. No per-instance prompting required — one text prompt returns all matches.
-2. Open-vocabulary — the concept can be anything describable in natural language.
-3. Returns multiple instances at once rather than one mask per prompt.
+1. 不需要逐实例提示——一个文本提示就能返回所有匹配项。
+2. 开放词汇 (open-vocabulary) —— 这个概念可以是任何能用自然语言描述的东西。
+3. 一次返回多个实例，而不是每个提示只返回一个 mask。
 
-### Key architectural pieces
+### 关键架构组件
 
-- **Shared backbone** — a single ViT processes the image. Both the detector head and the memory-based tracker read from it.
-- **Presence head** — predicts whether the concept is present in the image at all. Decouples "is this here?" from "where is it?". Reduces false positives on absent concepts.
-- **Decoupled detector-tracker** — image-level detection and video-level tracking have separate heads so they do not interfere.
-- **Memory bank** — stores per-instance features across frames for video tracking (same mechanism SAM 2 used).
+- **共享骨干网络** —— 单个 ViT 处理图像，detector head 和基于记忆的 tracker 都从中读取特征。
+- **存在头 (presence head)** —— 预测这个概念是否真的出现在图像中。把“它在不在这里？”和“它在哪里？”解耦，从而减少对不存在概念的误检。
+- **解耦的 detector-tracker** —— 图像级检测和视频级跟踪使用不同的 head，因此不会互相干扰。
+- **记忆库 (memory bank)** —— 为视频跟踪跨帧存储每个实例的特征（和 SAM 2 使用的是同一种机制）。
 
-### Training at scale
+### 大规模训练
 
-SAM 3 was trained on **4 million unique concepts** generated by a data engine that iteratively annotates and corrects using AI + human review. The new **SA-CO benchmark** contains 270K unique concepts, 50x larger than prior benchmarks. SAM 3 reaches 75-80% of human performance on SA-CO and doubles existing systems on image + video PCS.
+SAM 3 在**400 万个独特概念**上完成训练，这些概念来自一个通过 AI + 人工审核不断迭代标注与纠错的数据引擎。新的 **SA-CO benchmark** 含有 27 万个独特概念，比此前的 benchmark 大 50 倍。SAM 3 在 SA-CO 上达到了人类表现的 75-80%，并在图像 + 视频 PCS 任务上把现有系统的成绩翻倍。
 
 ### SAM 3.1 Object Multiplex
 
-March 2026 update: **Object Multiplex** introduces a shared-memory mechanism for joint tracking of many instances of the same concept at once. Previously, tracking N instances meant N separate memory banks. Multiplex collapses that into one shared memory with per-instance queries. Result: substantially faster multi-object tracking without sacrificing accuracy.
+2026 年 3 月更新：**Object Multiplex** 引入了一种共享记忆机制，可以联合跟踪同一概念下的多个实例。此前，如果要跟踪 N 个实例，就需要 N 个独立的记忆库。Multiplex 将其压缩为一个共享记忆，再配合逐实例查询。结果是在不牺牲精度的前提下，大幅加快多目标跟踪速度。
 
-### Where Grounded SAM still matters in 2026
+### 为什么 Grounded SAM 在 2026 年仍然重要
 
-- When you need a specific open-vocabulary detector swapped in (DINO-X, Florence-2).
-- When the SAM 3 license (gated on HF) is a blocker.
-- When you need more control over the detector threshold than SAM 3 exposes.
-- For research / ablation work on the detector component.
+- 当你需要替换成特定的开放词汇 detector（DINO-X、Florence-2）时。
+- 当 SAM 3 的许可证（在 HF 上受限）成为阻碍时。
+- 当你需要比 SAM 3 暴露出来的阈值更细的 detector 控制时。
+- 当你在做 detector 组件相关的研究 / 消融实验时。
 
-Modular pipelines still have a place. For most production work, SAM 3 is the simpler answer.
+模块化流水线依然有其位置。但对于大多数生产工作，SAM 3 是更简单的答案。
 
 ### YOLO-World vs SAM 3
 
-- **YOLO-World** — open-vocabulary detector only (no masks). Real-time. Best when you need boxes at high fps.
-- **SAM 3** — full segmentation + tracking. Slower but richer output.
+- **YOLO-World** —— 只是开放词汇 detector（没有 mask）。实时。最适合需要高 fps 边框输出的场景。
+- **SAM 3** —— 提供完整的分割 + 跟踪。速度更慢，但输出更丰富。
 
-Production split: YOLO-World for fast detection-only pipelines (robotics navigation, fast dashboards), SAM 3 for anything that needs masks or tracking.
+生产中的分工是：YOLO-World 用于只需要快速检测的流水线（机器人导航、快速看板），SAM 3 用于任何需要 mask 或跟踪的场景。
 
-### SAM-MI efficiency
+### SAM-MI 的效率
 
-SAM-MI (2025-2026) addresses SAM's decoder bottleneck. Key ideas:
+SAM-MI（2025-2026）针对 SAM 的 decoder 瓶颈进行优化。关键思路：
 
-- **Sparse point prompting** — uses a few well-chosen points instead of dense prompts; reduces decoder calls by 96%.
-- **Shallow mask aggregation** — merges rough mask predictions into one sharper mask.
-- **Decoupled mask injection** — decoder receives pre-computed mask features instead of re-running.
+- **Sparse point prompting** —— 使用少量精心挑选的点，而不是密集提示；将 decoder 调用减少 96%。
+- **Shallow mask aggregation** —— 把粗糙的 mask 预测合并成一个更锐利的 mask。
+- **Decoupled mask injection** —— decoder 接收预先计算好的 mask 特征，而不是重复运行。
 
-Result: ~1.6× speedup over Grounded-SAM on open-vocabulary benchmarks.
+结果：在开放词汇 benchmark 上，相比 Grounded-SAM 约有 ~1.6× 的加速。
 
-### Output format for the three models
+### 三种模型的输出格式
 
-All return the same general structure (boxes + labels + scores + masks + IDs), which is helpful — your pipeline downstream does not have to branch on which model ran.
+它们都会返回同一种总体结构（boxes + labels + scores + masks + IDs），这非常有帮助——你的下游流水线不需要根据运行的是哪一个模型来分支。
 
-## Build It
+## 动手实现
 
-### Step 1: Prompt construction
+### 第 1 步：构造提示
 
-Build a helper that turns a user sentence into a list of SAM 3 concept prompts. This is the boundary where "what the user typed" meets "what the model consumes".
+构建一个辅助函数，把用户输入的句子变成一组 SAM 3 概念提示。这就是“用户输入了什么”和“模型真正消费什么”之间的边界。
 
 ```python
 def split_concepts(sentence):
@@ -125,11 +125,11 @@ def split_concepts(sentence):
 print(split_concepts("cats, dogs and balloons"))
 ```
 
-SAM 3 accepts one concept per forward pass; for multi-concept queries, loop or batch them.
+SAM 3 每次前向传播只接受一个概念；对于多概念查询，可以循环处理或批量处理。
 
-### Step 2: Post-processing helpers
+### 第 2 步：后处理辅助函数
 
-Turn SAM 3's raw outputs into a clean list of detections that match our Phase 4 Lesson 16 pipeline contract.
+把 SAM 3 的原始输出转换成一份干净的检测列表，使之符合我们第 4 阶段第 16 课流水线约定的接口。
 
 ```python
 from dataclasses import dataclass
@@ -158,11 +158,11 @@ def rle_encode(binary_mask):
     return ";".join(f"{v}x{c}" for v, c in runs)
 ```
 
-RLE keeps response payloads small even for many high-resolution masks. The same format works across SAM 2, SAM 3, Grounded SAM 2.
+游程长度编码 (run-length encoded, RLE) 可以让响应负载在拥有许多高分辨率 mask 时依然保持较小。SAM 2、SAM 3、Grounded SAM 2 都可以使用同一种格式。
 
-### Step 3: A unified open-vocab segmentation interface
+### 第 3 步：统一的开放词汇分割接口
 
-Wrap whatever backend you have (SAM 3, Grounded SAM 2, YOLO-World + SAM 2) behind a single method. Your downstream code does not change when the backend does.
+把你手头的任何后端（SAM 3、Grounded SAM 2、YOLO-World + SAM 2）包装到同一个方法后面。后端变了，你的下游代码不需要跟着变。
 
 ```python
 from abc import ABC, abstractmethod
@@ -198,11 +198,11 @@ class StubOpenVocabSeg(OpenVocabSeg):
         ]
 ```
 
-The real `SAM3OpenVocabSeg` subclass would wrap `transformers.Sam3Model` and `Sam3Processor`.
+真正的 `SAM3OpenVocabSeg` 子类会包装 `transformers.Sam3Model` 和 `Sam3Processor`。
 
-### Step 4: Hugging Face SAM 3 usage (reference)
+### 第 4 步：Hugging Face 中的 SAM 3 用法（参考）
 
-For the actual model, the `transformers` integration:
+对于真实模型，`transformers` 的集成方式如下：
 
 ```python
 from transformers import Sam3Processor, Sam3Model
@@ -224,28 +224,28 @@ boxes = outputs.boxes
 scores = outputs.scores
 ```
 
-One prompt, all matches returned in a single call.
+一个提示，一次调用，返回所有匹配项。
 
-### Step 5: Measure what Grounded SAM 2 gave you for free
+### 第 5 步：量化 Grounded SAM 2 原本免费提供给你的东西
 
-An honest benchmark: what happens when you replace Grounded SAM 2 with SAM 3 in a real pipeline?
+一个诚实的基准问题：当你在真实流水线中把 Grounded SAM 2 替换为 SAM 3 时，会发生什么？
 
-- Latency: SAM 3 saves one forward pass (no separate detector) but the model itself is heavier; usually net-neutral or a slight speedup.
-- Accuracy: SAM 3 substantially better on rare or compositional concepts ("striped red umbrella"). Similar on common single-word concepts.
-- Flexibility: Grounded SAM 2 lets you swap detectors (DINO-X, Florence-2, Grounding DINO 1.5); SAM 3 is monolithic.
+- 延迟：SAM 3 少了一次前向传播（不再需要单独 detector），但模型本身更重；通常总体持平或略快一些。
+- 精度：SAM 3 在稀有概念或组合概念（“striped red umbrella”）上明显更好。对常见的单词概念则相近。
+- 灵活性：Grounded SAM 2 允许你替换 detector（DINO-X、Florence-2、Grounding DINO 1.5）；SAM 3 则是单体式模型。
 
-Conclusion: SAM 3 is the default for 2026 open-vocab seg. Grounded SAM 2 is still the right answer when you need detector flexibility or different license terms.
+结论：SAM 3 是 2026 年开放词汇分割的默认选择。当你需要 detector 灵活性或不同许可证条款时，Grounded SAM 2 仍然是正确答案。
 
-## Use It
+## 使用
 
-Production deployment patterns:
+生产部署模式：
 
-- **Real-time annotation** — SAM 3 + CVAT's label-as-text-prompt feature. Annotators select a label name; SAM 3 pre-labels every matching instance. Review and correct.
-- **Video analytics** — SAM 3.1 Object Multiplex for multi-object tracking; feed frames to the memory-based tracker.
-- **Robotics** — SAM 3 for open-vocab manipulation ("pick up the red cup"); runs as a planning primitive.
-- **Medical imaging** — SAM 3 fine-tuned on medical concepts; requires access request on HF.
+- **实时标注** —— SAM 3 + CVAT 的 label-as-text-prompt 功能。标注员选择标签名；SAM 3 为所有匹配实例预标注。然后再审核与修正。
+- **视频分析** —— 使用 SAM 3.1 Object Multiplex 做多目标跟踪；把视频帧送入基于记忆的 tracker。
+- **机器人** —— SAM 3 用于开放词汇操控（“pick up the red cup”）；作为规划原语运行。
+- **医学影像** —— 在医学概念上微调过的 SAM 3；需要在 HF 上申请访问权限。
 
-Ultralytics wraps SAM 3 in its Python package:
+Ultralytics 在它的 Python 包中封装了 SAM 3：
 
 ```python
 from ultralytics import SAM
@@ -254,35 +254,35 @@ model = SAM("sam3.pt")
 results = model(image_path, prompts="yellow school bus")
 ```
 
-Same interface as YOLO and SAM 2.
+接口与 YOLO 和 SAM 2 保持一致。
 
-## Ship It
+## 交付
 
-This lesson produces:
+本课会产出：
 
-- `outputs/prompt-open-vocab-stack-picker.md` — a prompt that picks SAM 3 / Grounded SAM 2 / YOLO-World / SAM-MI based on latency, concept complexity, and licensing.
-- `outputs/skill-concept-prompt-designer.md` — a skill that turns user utterances into well-formed SAM 3 concept prompts (splitting, disambiguation, fallbacks).
+- `outputs/prompt-open-vocab-stack-picker.md` —— 一个会根据延迟、概念复杂度和许可证，在 SAM 3 / Grounded SAM 2 / YOLO-World / SAM-MI 之间做选择的提示词。
+- `outputs/skill-concept-prompt-designer.md` —— 一个能把用户话语转成高质量 SAM 3 概念提示（切分、消歧、回退策略）的 skill。
 
-## Exercises
+## 练习
 
-1. **(Easy)** Run SAM 3 on 10 images with concept prompts you choose. Compare against SAM 2 + Grounding DINO 1.5 on the same images. Report which concepts each model missed.
-2. **(Medium)** Build a "click-to-include / click-to-exclude" UI on top of SAM 3: a text prompt returns candidate instances; user clicks keep which ones count as positive. Output the final concept set as JSON.
-3. **(Hard)** Fine-tune SAM 3 on a custom concept set (e.g. 5 types of electronic components) with 20 labelled images each. Compare to zero-shot SAM 3 on the same test set; measure mask IoU improvement.
+1. **（简单）** 在 10 张图像上运行 SAM 3，概念提示由你自己选择。再在同一批图像上与 SAM 2 + Grounding DINO 1.5 对比。报告每个模型漏掉了哪些概念。
+2. **（中等）** 在 SAM 3 之上构建一个“点击包含 / 点击排除”UI：文本提示先返回候选实例；用户再点击决定哪些应被视为正样本。最终把概念集合输出为 JSON。
+3. **（困难）** 在一个自定义概念集合（例如 5 类电子元件）上微调 SAM 3，每类各有 20 张标注图像。与同一测试集上的零样本 SAM 3 做对比；测量 mask IoU 的提升。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们怎么说 | 实际含义 |
 |------|----------------|----------------------|
-| Open-vocabulary segmentation | "Segment by text" | Produce masks for objects described in natural language, not a fixed label set |
-| PCS | "Promptable Concept Segmentation" | SAM 3's core task — given a noun-phrase or image exemplar, segment all matching instances |
-| Concept prompt | "The text input" | Short noun phrase or image exemplar; not a full sentence |
-| Presence head | "Is it here?" | SAM 3 module that decides whether the concept exists in the image before localisation |
-| SA-CO | "SAM 3 benchmark" | 270K-concept open-vocabulary segmentation benchmark; 50x larger than prior open-vocab benchmarks |
-| Object Multiplex | "SAM 3.1 update" | Shared-memory multi-object tracking; fast joint tracking of many instances |
-| Grounded SAM 2 | "Modular pipeline" | Detector + SAM 2 cascade; still relevant when detector swap matters |
-| SAM-MI | "Efficient SAM variant" | Mask Injection for 1.6x speedup over Grounded-SAM |
+| Open-vocabulary segmentation | “按文本做分割” | 为自然语言描述的对象生成 mask，而不是限定在固定标签集合中 |
+| PCS | “可提示概念分割” | SAM 3 的核心任务——给定一个名词短语或图像示例，分割所有匹配实例 |
+| Concept prompt | “文本输入” | 简短名词短语或图像示例；不是完整句子 |
+| Presence head | “它在这里吗？” | SAM 3 中在定位前先判断概念是否存在于图像中的模块 |
+| SA-CO | “SAM 3 benchmark” | 含 27 万概念的开放词汇分割 benchmark；规模比此前开放词汇 benchmark 大 50 倍 |
+| Object Multiplex | “SAM 3.1 更新” | 基于共享记忆的多目标跟踪；可快速联合跟踪许多实例 |
+| Grounded SAM 2 | “模块化流水线” | detector + SAM 2 级联；在 detector 可替换性很重要时仍然有价值 |
+| SAM-MI | “高效 SAM 变体” | 通过 Mask Injection 实现相对 Grounded-SAM 1.6x 加速 |
 
-## Further Reading
+## 延伸阅读
 
 - [SAM 3: Segment Anything with Concepts (arXiv 2511.16719)](https://arxiv.org/abs/2511.16719)
 - [SAM 3.1 Object Multiplex (Meta AI, March 2026)](https://ai.meta.com/blog/segment-anything-model-3/)

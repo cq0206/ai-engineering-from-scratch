@@ -1,228 +1,228 @@
-# Fine-Tuning with LoRA & QLoRA
+# 使用 LoRA 与 QLoRA 进行微调
 
-> Full fine-tuning a 7B model requires 56GB of VRAM. You don't have that. Neither do most companies. LoRA lets you fine-tune the same model in 6GB by training less than 1% of the parameters. This isn't a compromise -- it matches full fine-tuning quality on most tasks. The entire open-source fine-tuning ecosystem runs on this one trick.
+> 对一个 7B 模型做全量微调（full fine-tuning）需要 56GB VRAM。你没有，大多数公司也没有。LoRA 通过只训练不到 1% 的参数，就能把同一个模型的微调压到 6GB 内完成。这不是一种妥协——在大多数任务上，它能达到与全量微调相当的质量。整个开源微调生态，基本都建立在这一个技巧之上。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 10, Lesson 06 (Instruction Tuning / SFT)
-**Time:** ~75 minutes
-**Related:** Phase 10 covers the SFT/DPO loops from scratch. This lesson plugs those into the 2026 PEFT toolkits (PEFT, TRL, Unsloth, Axolotl, LLaMA-Factory).
+**类型：** 构建
+**语言：** Python
+**前置要求：** 第 10 阶段，第 06 课（Instruction Tuning / SFT）
+**时长：** ~75 分钟
+**相关内容：** 第 10 阶段从零讲解 SFT/DPO 循环。本课将这些内容接入 2026 年的 PEFT 工具栈（PEFT、TRL、Unsloth、Axolotl、LLaMA-Factory）。
 
-## Learning Objectives
+## 学习目标
 
-- Implement LoRA by injecting low-rank adapter matrices (A and B) into a pretrained model's attention layers
-- Calculate the parameter savings of LoRA vs full fine-tuning: rank r with d_model dimensions trains 2*r*d parameters instead of d^2
-- Fine-tune a model using QLoRA (4-bit quantized base + LoRA adapters) to fit within consumer GPU memory
-- Merge LoRA weights back into the base model for deployment and compare inference speed with and without adapters
+- 通过把低秩适配器矩阵（A 和 B）注入预训练模型的注意力层，亲手实现 LoRA
+- 计算 LoRA 相比全量微调的参数节省：对于维度为 d_model、秩为 r 的情况，训练的是 `2*r*d` 个参数，而不是 `d^2`
+- 使用 QLoRA（4-bit 量化基座 + LoRA 适配器）微调模型，使其能装进消费级 GPU 显存
+- 将 LoRA 权重合并回基座模型用于部署，并比较带适配器与不带适配器时的推理速度
 
-## The Problem
+## 问题
 
-You have a base model. Llama 3 8B. You want it to answer customer support tickets in your company's voice. SFT is the answer. But SFT has a cost problem.
+你有一个基座模型。Llama 3 8B。你想让它用你公司的口吻回答客服工单。SFT 是答案。但 SFT 有成本问题。
 
-Full fine-tuning updates every parameter in the model. Llama 3 8B has 8 billion parameters. In fp16, each parameter takes 2 bytes. That's 16GB just to load the weights. During training, you also need gradients (16GB), optimizer states for Adam (32GB for momentum + variance), and activations. Total: roughly 56GB of VRAM for a single 8B model.
+全量微调会更新模型中的每一个参数。Llama 3 8B 有 80 亿个参数。用 fp16 表示时，每个参数占 2 字节。仅加载权重就要 16GB。训练时你还需要梯度（16GB）、Adam 优化器状态（动量 + 方差共 32GB），以及激活值。总计：单个 8B 模型大约需要 56GB VRAM。
 
-An A100 80GB can barely fit this. Two A100s cost $3-4/hour on cloud providers. Training for 3 epochs on 50,000 examples takes 6-10 hours. That's $30-40 per experiment. Run 10 experiments to get the hyperparameters right and you've spent $400 before deploying anything.
+即使是 A100 80GB，也只是勉强装下。云服务商上两张 A100 的价格通常是每小时 3-4 美元。在 50,000 个样本上训练 3 个 epoch，大概要 6-10 小时。也就是说，每次实验要花 30-40 美元。为了找到合适的超参数跑 10 次实验，还没部署任何东西，你就已经花掉 400 美元了。
 
-Scale this to Llama 3 70B and the numbers get absurd. 140GB for weights alone. You need a cluster. $100+ per experiment.
+如果扩展到 Llama 3 70B，数字会离谱到不可接受。仅权重就需要 140GB。你得上集群。每次实验 100 美元起步。
 
-There's a deeper problem too. Full fine-tuning modifies every weight in the model. If you fine-tune on customer support data, you might degrade the model's general capabilities. It's called catastrophic forgetting. The model gets better at your task and worse at everything else.
+更深层的问题是：全量微调会修改模型中的每一项权重。如果你在客服数据上微调，模型的通用能力可能会下降。这叫灾难性遗忘（catastrophic forgetting）。模型会更擅长你的任务，却会在其他一切事情上变差。
 
-You need a method that trains fewer parameters, uses less memory, and doesn't destroy the model's existing knowledge.
+你需要一种方法：训练更少的参数、使用更少的内存，同时又不破坏模型已有的知识。
 
-## The Concept
+## 核心概念
 
-### LoRA: Low-Rank Adaptation
+### LoRA：低秩适配（Low-Rank Adaptation）
 
-Edward Hu and colleagues at Microsoft published LoRA in June 2021. The paper's insight: the weight updates during fine-tuning have low intrinsic rank. You don't need to update all 16.7 million parameters in a 4096x4096 weight matrix. The useful information in the update can be captured by a matrix of rank 16 or 32.
+Microsoft 的 Edward Hu 等人在 2021 年 6 月提出了 LoRA。论文的核心洞见是：微调过程中的权重更新，本身具有较低的内在秩（intrinsic rank）。你不需要去更新一个 4096x4096 权重矩阵中的全部 1670 万参数。更新中的有效信息，往往可以用一个秩为 16 或 32 的矩阵来表达。
 
-Here's the math. A standard linear layer computes:
+数学形式如下。标准线性层计算：
 
 ```
 y = Wx
 ```
 
-Where W is a d_out x d_in matrix. For a 4096x4096 attention projection, that's 16,777,216 parameters.
+其中 W 是一个 `d_out x d_in` 的矩阵。对于 4096x4096 的注意力投影层而言，这就是 16,777,216 个参数。
 
-LoRA freezes W and adds a low-rank decomposition:
+LoRA 会冻结 W，并增加一个低秩分解：
 
 ```
 y = Wx + BAx
 ```
 
-Where B is (d_out x r) and A is (r x d_in). The rank r is much smaller than d -- typically 8, 16, or 32.
+其中 B 的形状是 `(d_out x r)`，A 的形状是 `(r x d_in)`。秩 r 远小于 d——通常是 8、16 或 32。
 
-For r=16 on a 4096x4096 layer:
-- Original parameters: 4096 x 4096 = 16,777,216
-- LoRA parameters: (4096 x 16) + (16 x 4096) = 65,536 + 65,536 = 131,072
-- Reduction: 131,072 / 16,777,216 = 0.78%
+当 `r=16` 且层大小为 4096x4096 时：
+- 原始参数量：4096 x 4096 = 16,777,216
+- LoRA 参数量：`(4096 x 16) + (16 x 4096) = 65,536 + 65,536 = 131,072`
+- 降幅：`131,072 / 16,777,216 = 0.78%`
 
-You're training 0.78% of the parameters and getting 95-100% of the quality.
+你只训练了 0.78% 的参数，却能拿到 95-100% 的效果。
 
 ```mermaid
 graph LR
-    X["Input x"] --> W["Frozen W (d x d)"]
-    X --> A["A (r x d)"]
-    A --> B["B (d x r)"]
-    W --> Plus["+ (merge)"]
+    X["输入 x"] --> W["冻结的 W（d x d）"]
+    X --> A["A（r x d）"]
+    A --> B["B（d x r）"]
+    W --> Plus["+（合并）"]
     B --> Plus
-    Plus --> Y["Output y"]
+    Plus --> Y["输出 y"]
 
     style W fill:#1a1a2e,stroke:#e94560,color:#fff
     style A fill:#0f3460,stroke:#16213e,color:#fff
     style B fill:#0f3460,stroke:#16213e,color:#fff
 ```
 
-A is initialized with a random Gaussian. B is initialized to zero. This means the LoRA contribution starts at zero -- the model begins training from its original behavior and gradually learns the adaptation.
+A 用随机高斯值初始化，B 初始化为 0。这意味着 LoRA 分支一开始的贡献是 0——模型会从原始行为开始训练，再逐步学习适配能力。
 
-### The Scaling Factor: Alpha
+### 缩放因子：Alpha
 
-LoRA introduces a scaling factor alpha that controls how much the low-rank update affects the output:
+LoRA 引入了一个缩放因子 alpha，用来控制低秩更新对输出的影响：
 
 ```
 y = Wx + (alpha / r) * BAx
 ```
 
-When alpha = r, the scaling is 1x. When alpha = 2r (the common default), the scaling is 2x. This hyperparameter controls the learning rate of the LoRA path independently of the base learning rate.
+当 `alpha = r` 时，缩放为 1x；当 `alpha = 2r`（常见默认值）时，缩放为 2x。这个超参数可以独立于基础学习率，单独控制 LoRA 路径的“学习力度”。
 
-Practical guidance:
-- alpha = 2 * rank is a common community convention (the original paper used alpha = rank in most experiments)
-- alpha = rank gives 1x scaling, conservative but stable
-- Higher alpha means larger updates per step, which can speed convergence or cause instability
+实战建议：
+- `alpha = 2 * rank` 是社区常见惯例（原始论文在多数实验中使用 `alpha = rank`）
+- `alpha = rank` 对应 1x 缩放，更保守但更稳定
+- 更高的 alpha 代表每一步更新幅度更大，可能加快收敛，也可能带来不稳定性
 
-### Where to Apply LoRA
+### LoRA 应该加在哪些层上
 
-A transformer has many linear layers. You don't need to add LoRA to all of them. The original paper tested different combinations:
+一个 Transformer 含有大量线性层，但你并不需要给所有层都加 LoRA。原始论文测试了不同组合：
 
-| Target Layers | Trainable Params (7B) | Quality |
-|--------------|----------------------|---------|
-| q_proj only | 4.7M | Good |
-| q_proj + v_proj | 9.4M | Better |
-| q_proj + k_proj + v_proj + o_proj | 18.9M | Best for attention |
-| All linear (attention + MLP) | 37.7M | Marginal gain, 2x params |
+| 目标层 | 可训练参数（7B） | 质量 |
+|--------|------------------|------|
+| 仅 q_proj | 4.7M | 良好 |
+| q_proj + v_proj | 9.4M | 更好 |
+| q_proj + k_proj + v_proj + o_proj | 18.9M | 对注意力最优 |
+| 所有线性层（attention + MLP） | 37.7M | 提升有限，但参数翻倍 |
 
-The sweet spot for most tasks: q_proj + v_proj. This targets the query and value projections in self-attention, which control what the model attends to and what information it extracts. Adding MLP layers helps for complex tasks like code generation but doubles the parameter count for diminishing returns on simpler tasks.
+对多数任务来说，最甜蜜点是：`q_proj + v_proj`。这会作用在自注意力中的 query 和 value 投影层上，它们决定模型关注什么、提取什么信息。加入 MLP 层会对代码生成等复杂任务有帮助，但会把参数量翻倍，而对简单任务的边际收益有限。
 
-### Rank Selection
+### Rank 选择
 
-The rank r controls the expressiveness of the adaptation:
+秩 r 决定了适配能力的表达上限：
 
-| Rank | Trainable Params (per layer) | Best For |
-|------|---------------------------|----------|
-| 4 | 32,768 | Simple classification, sentiment |
-| 8 | 65,536 | Single-domain Q&A, summarization |
-| 16 | 131,072 | Multi-domain tasks, instruction following |
-| 32 | 262,144 | Complex reasoning, code generation |
-| 64 | 524,288 | Diminishing returns for most tasks |
-| 128 | 1,048,576 | Rarely justified |
+| Rank | 可训练参数（每层） | 最适合 |
+|------|-------------------|--------|
+| 4 | 32,768 | 简单分类、情感分析 |
+| 8 | 65,536 | 单领域问答、摘要 |
+| 16 | 131,072 | 多领域任务、指令跟随 |
+| 32 | 262,144 | 复杂推理、代码生成 |
+| 64 | 524,288 | 对大多数任务收益递减 |
+| 128 | 1,048,576 | 很少能证明值得 |
 
-Hu et al. showed that r=4 already captures most of the adaptation for simple tasks. r=8 and r=16 are the most common choices in practice. Going beyond r=64 rarely improves quality and starts to lose LoRA's memory advantage.
+Hu 等人的结果表明，`r=4` 在简单任务上就已经能捕捉大部分适配信息。`r=8` 和 `r=16` 是实践中最常见的选择。超过 `r=64` 通常很难继续提升质量，同时会开始失去 LoRA 的显存优势。
 
-### QLoRA: 4-Bit Quantization + LoRA
+### QLoRA：4-bit 量化 + LoRA
 
-Tim Dettmers and colleagues at the University of Washington published QLoRA in May 2023. The idea: quantize the frozen base model to 4-bit precision, then attach LoRA adapters in fp16 on top.
+华盛顿大学的 Tim Dettmers 等人在 2023 年 5 月提出了 QLoRA。思路是：先把冻结的基座模型量化到 4-bit 精度，再在其上方挂接 fp16 的 LoRA 适配器。
 
-This changes the memory equation dramatically:
+这会显著改变内存账本：
 
-| Method | Weight Memory (7B) | Training Memory (7B) | GPU Required |
-|--------|-------------------|---------------------|-------------|
-| Full fine-tune (fp16) | 14GB | ~56GB | 1x A100 80GB |
-| LoRA (fp16 base) | 14GB | ~18GB | 1x A100 40GB |
-| QLoRA (4-bit base) | 3.5GB | ~6GB | 1x RTX 3090 24GB |
+| 方法 | 权重内存（7B） | 训练内存（7B） | 所需 GPU |
+|------|---------------|----------------|----------|
+| 全量微调（fp16） | 14GB | ~56GB | 1x A100 80GB |
+| LoRA（fp16 基座） | 14GB | ~18GB | 1x A100 40GB |
+| QLoRA（4-bit 基座） | 3.5GB | ~6GB | 1x RTX 3090 24GB |
 
-QLoRA makes three technical contributions:
+QLoRA 有三项关键技术贡献：
 
-**NF4 (Normal Float 4-bit)**: A new data type designed specifically for neural network weights. Neural network weights follow a roughly normal distribution. NF4 places its 16 quantization levels at the quantiles of a standard normal distribution. This is information-theoretically optimal for normally distributed data. It loses less information than uniform 4-bit quantization (INT4) or standard Float4.
+**NF4（Normal Float 4-bit）**：一种专门为神经网络权重设计的新数据类型。神经网络权重大致服从正态分布。NF4 把 16 个量化等级放在标准正态分布的分位点上。对于正态分布数据而言，这在信息论意义上是最优的。相比均匀 4-bit 量化（INT4）或标准 Float4，它会损失更少的信息。
 
-**Double quantization**: The quantization constants themselves take memory. Each block of 64 weights needs a fp32 scale factor (4 bytes). For a 7B model, that's an extra 0.4GB. Double quantization quantizes these constants to fp8, reducing the overhead to 0.1GB. Small but it adds up.
+**双重量化（double quantization）**：量化常数本身也要占内存。每个 64 权重块都需要一个 fp32 缩放因子（4 字节）。对于 7B 模型，这会额外增加 0.4GB。双重量化会把这些常数再量化为 fp8，把开销压到 0.1GB。看似不大，但积少成多。
 
-**Paged optimizers**: During training, optimizer states (Adam's momentum and variance) can exceed GPU memory on long sequences. Paged optimizers use NVIDIA's unified memory to automatically page optimizer states to CPU RAM when GPU memory is exhausted, and page them back when needed. This prevents OOM crashes at the cost of some throughput.
+**分页优化器（paged optimizers）**：训练长序列时，优化器状态（Adam 的动量和方差）可能会超过 GPU 内存。分页优化器会借助 NVIDIA 的统一内存，在 GPU 显存耗尽时，自动把优化器状态分页到 CPU RAM；需要时再换回 GPU。这样可以避免 OOM 崩溃，代价是吞吐会有所下降。
 
-### The Quality Question
+### 质量问题
 
-Does reducing parameters or quantizing the base hurt quality? The results from multiple papers:
+减少参数或量化基座，会不会伤害质量？多篇论文给出的结果如下：
 
-| Method | MMLU (5-shot) | MT-Bench | HumanEval |
-|--------|--------------|----------|-----------|
-| Full fine-tune (Llama 2 7B) | 48.3 | 6.72 | 14.6 |
+| 方法 | MMLU（5-shot） | MT-Bench | HumanEval |
+|------|----------------|----------|-----------|
+| 全量微调（Llama 2 7B） | 48.3 | 6.72 | 14.6 |
 | LoRA r=16 | 47.9 | 6.68 | 14.0 |
-| QLoRA r=16 (NF4) | 47.5 | 6.61 | 13.4 |
-| QLoRA r=64 (NF4) | 48.1 | 6.70 | 14.2 |
+| QLoRA r=16（NF4） | 47.5 | 6.61 | 13.4 |
+| QLoRA r=64（NF4） | 48.1 | 6.70 | 14.2 |
 
-LoRA at r=16 is within 1% of full fine-tuning on most benchmarks. QLoRA at r=16 loses another fraction of a percent. QLoRA at r=64 essentially matches full fine-tuning while using 90% less memory.
+在大多数基准上，`r=16` 的 LoRA 与全量微调的差距在 1% 以内。`r=16` 的 QLoRA 还会再损失一点点百分比。而 `r=64` 的 QLoRA 在使用 90% 更少内存的前提下，基本与全量微调持平。
 
-### Real-World Costs
+### 真实世界成本
 
-Fine-tuning Llama 3 8B on 50,000 examples (3 epochs):
+在 50,000 个样本上微调 Llama 3 8B（3 个 epoch）：
 
-| Method | GPU | Time | Cost |
-|--------|-----|------|------|
-| Full fine-tune | 2x A100 80GB | 8 hours | ~$32 |
-| LoRA r=16 | 1x A100 40GB | 4 hours | ~$8 |
-| QLoRA r=16 | 1x RTX 4090 24GB | 6 hours | ~$5 |
-| QLoRA r=16 (Unsloth) | 1x RTX 4090 24GB | 2.5 hours | ~$2 |
-| QLoRA r=16 | 1x T4 16GB | 12 hours | ~$4 |
+| 方法 | GPU | 时间 | 成本 |
+|------|-----|------|------|
+| 全量微调 | 2x A100 80GB | 8 小时 | ~$32 |
+| LoRA r=16 | 1x A100 40GB | 4 小时 | ~$8 |
+| QLoRA r=16 | 1x RTX 4090 24GB | 6 小时 | ~$5 |
+| QLoRA r=16（Unsloth） | 1x RTX 4090 24GB | 2.5 小时 | ~$2 |
+| QLoRA r=16 | 1x T4 16GB | 12 小时 | ~$4 |
 
-QLoRA on a single consumer GPU costs less than a lunch. This is why the open-weight fine-tuning community exploded in 2023 and why every training framework below ships QLoRA by default in 2026.
+在一张消费级 GPU 上跑 QLoRA，成本比一顿午饭还低。这就是为什么开源权重微调社区会在 2023 年爆发，也解释了为什么到了 2026 年，下面列出的每一个训练框架都默认内置 QLoRA。
 
-### The 2026 PEFT stack
+### 2026 年的 PEFT 工具栈
 
-| Framework | What it is | Pick when |
-|-----------|-----------|-----------|
-| **Hugging Face PEFT** | The canonical LoRA/QLoRA/DoRA/IA3 library | You want raw control and your training loop is already on `transformers.Trainer` |
-| **TRL** | HF's reinforcement-from-feedback trainers (SFT, DPO, GRPO, PPO, ORPO) | You need DPO/GRPO after SFT; built on top of PEFT |
-| **Unsloth** | Triton-kernel rewrite of the forward/backward pass | You want 2-5x speedup + half the VRAM with no accuracy loss; Llama/Mistral/Qwen family |
-| **Axolotl** | YAML-config wrapper over PEFT + TRL + DeepSpeed + Unsloth | You want reproducible, version-controlled training runs |
-| **LLaMA-Factory** | GUI/CLI/API over PEFT + TRL | You want zero-code fine-tuning; 100+ model families supported |
-| **torchtune** | Native PyTorch recipes, no `transformers` dep | You want minimal deps and your org already standardizes on PyTorch |
+| 框架 | 它是什么 | 适用场景 |
+|------|----------|----------|
+| **Hugging Face PEFT** | 经典的 LoRA/QLoRA/DoRA/IA3 库 | 你想获得底层控制权，而且训练循环已经基于 `transformers.Trainer` |
+| **TRL** | HF 的反馈学习训练器（SFT、DPO、GRPO、PPO、ORPO） | 你需要在 SFT 后继续做 DPO/GRPO；它构建在 PEFT 之上 |
+| **Unsloth** | 用 Triton kernel 重写前向/反向传播 | 你想获得 2-5 倍加速、显存减半且不损失精度；适用于 Llama/Mistral/Qwen 家族 |
+| **Axolotl** | 基于 YAML 的封装层，封住了 PEFT + TRL + DeepSpeed + Unsloth | 你想要可复现、可版本化的训练流程 |
+| **LLaMA-Factory** | PEFT + TRL 之上的 GUI/CLI/API | 你想零代码微调；支持 100+ 模型家族 |
+| **torchtune** | 原生 PyTorch recipes，不依赖 `transformers` | 你想保持依赖最小化，而且团队已经统一使用 PyTorch |
 
-Rule of thumb: research use or one-off experiment → PEFT. Repeatable production pipeline → Axolotl with Unsloth kernels enabled. Throwaway prototyping → LLaMA-Factory.
+经验法则：科研用途或一次性实验 → PEFT。可重复的生产流水线 → 开启 Unsloth kernel 的 Axolotl。快速原型验证 → LLaMA-Factory。
 
-### Merging Adapters
+### 合并适配器
 
-After training, you have two things: the frozen base model and a small LoRA adapter (typically 10-100MB). You can either:
+训练结束后，你会得到两样东西：冻结的基座模型，以及一个很小的 LoRA adapter（通常 10-100MB）。你可以选择：
 
-1. **Keep them separate**: Load the base model, load the adapter on top. Swap adapters for different tasks. This is how you serve multiple fine-tuned variants from one base model.
+1. **保持分离**：先加载基座模型，再把 adapter 叠加在上面。这样可以为不同任务切换 adapter。这就是生产中如何从同一个基座模型服务多个微调变体。
 
-2. **Merge them permanently**: Compute W' = W + (alpha/r) * BA and save the result as a new full model. The merged model is the same size as the original. No inference overhead. No adapter to manage.
+2. **永久合并**：计算 `W' = W + (alpha/r) * BA`，然后把结果保存为一个新的完整模型。合并后的模型大小与原始模型一致。没有推理额外开销，也不用再管理 adapter。
 
-For serving multiple tasks (customer support adapter, code adapter, translation adapter), keep them separate. For deploying a single specialized model, merge.
+如果你要服务多个任务（客服 adapter、代码 adapter、翻译 adapter），就保持分离。如果你只部署一个专用模型，就做合并。
 
-Advanced merging techniques for combining multiple adapters:
+用于组合多个 adapter 的高级合并技术包括：
 
-- **TIES-Merging** (Yadav et al. 2023): Trims small-magnitude parameters, resolves sign conflicts, then merges. Reduces interference between adapters.
-- **DARE** (Yu et al. 2023): Randomly drops adapter parameters before merging and rescales the rest. Surprisingly effective at combining capabilities.
-- **Task arithmetic**: Simply add or subtract adapter weights. Adding a "code" adapter and a "math" adapter often produces a model good at both.
+- **TIES-Merging**（Yadav et al. 2023）：裁剪小幅值参数、解决符号冲突后再合并，以减少 adapter 之间的相互干扰。
+- **DARE**（Yu et al. 2023）：合并前随机丢弃部分 adapter 参数，再对剩余参数重新缩放。对于能力组合，这种方法意外地有效。
+- **任务算术（task arithmetic）**：直接对 adapter 权重做加减。把一个“代码”adapter 和一个“数学”adapter 相加，往往能得到一个两者都不错的模型。
 
-### When NOT to Fine-Tune
+### 什么时候不该微调
 
-Fine-tuning is the third option, not the first.
+微调应该是第三选择，而不是第一选择。
 
-**First: prompt engineering.** Write a better system prompt. Add few-shot examples. Use chain-of-thought. This costs nothing and takes minutes. If prompting gets you 80% of the way there, you probably don't need to fine-tune.
+**第一：提示词工程。** 写更好的系统提示词，增加 few-shot 示例，使用 chain-of-thought。这几乎零成本，只需几分钟。如果靠提示词你已经达到 80% 的效果，通常就没必要微调。
 
-**Second: RAG.** If the model needs to know about your specific data (documents, knowledge base, product catalog), retrieval is cheaper and more maintainable than baking it into weights. See Lesson 06.
+**第二：RAG。** 如果模型需要知道你的特定数据（文档、知识库、产品目录），检索要比把这些信息烘焙进权重更便宜，也更好维护。参见第 06 课。
 
-**Third: fine-tuning.** Use this when you need the model to adopt a specific style, format, or reasoning pattern that cannot be achieved through prompting. When you need consistent structured output. When you need to distill a larger model into a smaller one. When latency matters and you can't afford the extra tokens from few-shot prompting.
+**第三：微调。** 当你需要模型学会某种特定风格、格式或推理模式，而这些无法通过提示词实现时；当你需要稳定的结构化输出时；当你需要把更大的模型蒸馏到更小模型时；当延迟很重要而你无法承受 few-shot 提示词额外 token 成本时，才考虑微调。
 
 ```mermaid
 graph TD
-    Start["Need better model behavior?"] --> PE["Try prompt engineering"]
-    PE -->|"Works"| Done["Ship it"]
-    PE -->|"Not enough"| RAG["Need external knowledge?"]
-    RAG -->|"Yes"| RAGBuild["Build RAG pipeline"]
-    RAG -->|"No, need style/format change"| FT["Fine-tune with LoRA/QLoRA"]
-    RAGBuild -->|"Works"| Done
-    RAGBuild -->|"Also need style change"| FT
+    Start["需要更好的模型行为？"] --> PE["先试提示词工程"]
+    PE -->|"有效"| Done["可以上线"]
+    PE -->|"还不够"| RAG["需要外部知识吗？"]
+    RAG -->|"需要"| RAGBuild["构建 RAG 流水线"]
+    RAG -->|"不需要，只是要改风格/格式"| FT["用 LoRA/QLoRA 微调"]
+    RAGBuild -->|"有效"| Done
+    RAGBuild -->|"还需要风格变化"| FT
     FT --> Done
 
     style Start fill:#1a1a2e,stroke:#e94560,color:#fff
     style Done fill:#0f3460,stroke:#16213e,color:#fff
 ```
 
-## Build It
+## 动手构建
 
-We implement LoRA from scratch in pure PyTorch. No libraries. No magic. You'll build the LoRA layer, inject it into a model, train it, and merge the weights back.
+我们将用纯 PyTorch 从零实现 LoRA。不依赖任何库，不靠魔法。你会构建 LoRA 层，把它注入模型，训练它，再把权重合并回去。
 
-### Step 1: The LoRA Layer
+### 第 1 步：LoRA 层
 
 ```python
 import torch
@@ -243,9 +243,9 @@ class LoRALayer(nn.Module):
         return (x @ self.A @ self.B) * self.scaling
 ```
 
-A is initialized with scaled random values. B is initialized to zero. The product BA starts at zero, so the model begins with its original behavior.
+A 用缩放后的随机值初始化，B 初始化为 0。这样 `BA` 的乘积一开始为 0，模型会从原始行为出发。
 
-### Step 2: LoRA-Wrapped Linear Layer
+### 第 2 步：LoRA 包装的线性层
 
 ```python
 class LinearWithLoRA(nn.Module):
@@ -263,9 +263,9 @@ class LinearWithLoRA(nn.Module):
         return self.linear(x) + self.lora(x)
 ```
 
-The original linear layer is frozen. Only the LoRA parameters (A and B) are trainable.
+原始线性层被冻结。只有 LoRA 参数（A 和 B）是可训练的。
 
-### Step 3: Inject LoRA into a Model
+### 第 3 步：把 LoRA 注入模型
 
 ```python
 def inject_lora(model, target_modules, rank=8, alpha=16):
@@ -285,9 +285,9 @@ def inject_lora(model, target_modules, rank=8, alpha=16):
     return lora_layers
 ```
 
-First, freeze every parameter in the model. Then walk the model tree, find linear layers matching your target names, and replace them with LoRA-wrapped versions. The LoRA A and B matrices are the only trainable parameters in the entire model.
+先冻结模型中的所有参数。然后遍历模型树，找到名称匹配目标模块的线性层，并替换成 LoRA 包装版本。整个模型中，只有 LoRA 的 A 和 B 矩阵仍然可训练。
 
-### Step 4: Count Parameters
+### 第 4 步：统计参数
 
 ```python
 def count_parameters(model):
@@ -302,7 +302,7 @@ def count_parameters(model):
     }
 ```
 
-### Step 5: Merge Weights Back
+### 第 5 步：把权重合并回去
 
 ```python
 def merge_lora_weights(model):
@@ -322,9 +322,9 @@ def merge_lora_weights(model):
             setattr(parent, child_name, module.linear)
 ```
 
-After merging, the LoRA layers are gone. The model is the same size as the original with the adaptation baked into the weights. No inference overhead.
+合并后，LoRA 层就消失了。模型大小会回到原始状态，只是适配能力已经被烘焙进权重中。推理时没有额外开销。
 
-### Step 6: Simulated QLoRA Quantization
+### 第 6 步：模拟 QLoRA 量化
 
 ```python
 def quantize_to_nf4(tensor, block_size=64):
@@ -339,9 +339,9 @@ def dequantize_from_nf4(quantized, scales, original_shape):
     return dequantized.reshape(original_shape)
 ```
 
-This simulates 4-bit quantization by mapping weights into 16 discrete levels within blocks of 64. Production QLoRA uses the bitsandbytes library for true NF4 on GPU.
+这段代码模拟了 4-bit 量化：把权重按 64 个一组映射到 16 个离散等级上。生产中的 QLoRA 会使用 bitsandbytes 库，在 GPU 上实现真正的 NF4。
 
-### Step 7: Training Loop
+### 第 7 步：训练循环
 
 ```python
 def train_lora(model, data, epochs=5, lr=1e-3, batch_size=4):
@@ -377,7 +377,7 @@ def train_lora(model, data, epochs=5, lr=1e-3, batch_size=4):
     return losses
 ```
 
-### Step 8: Full Demo
+### 第 8 步：完整演示
 
 ```python
 def demo():
@@ -421,11 +421,11 @@ def demo():
     }
 ```
 
-The demo creates a small model, injects LoRA into two layers, trains it, and merges the weights back. The parameter count drops from full trainable to ~1% trainable during LoRA training, then returns to the original architecture after merging.
+这个 demo 会创建一个小模型，把 LoRA 注入两层，训练它，再把权重合并回去。参数数量会从“全部可训练”降到 LoRA 训练期间的约 1% 可训练，合并后再回到原始架构。
 
-## Use It
+## 实际使用
 
-With the Hugging Face ecosystem, LoRA on a real model takes about 20 lines:
+在 Hugging Face 生态里，对真实模型应用 LoRA 大约只需要 20 行代码：
 
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -446,7 +446,7 @@ model = get_peft_model(model, lora_config)
 model.print_trainable_parameters()
 ```
 
-For QLoRA, add bitsandbytes quantization:
+如果要做 QLoRA，再加上 bitsandbytes 的量化配置：
 
 ```python
 from transformers import BitsAndBytesConfig
@@ -467,9 +467,9 @@ model = AutoModelForCausalLM.from_pretrained(
 model = get_peft_model(model, lora_config)
 ```
 
-That's it. Same training loop. Same data pipeline. The base model now lives in 4-bit, LoRA adapters train in fp16, and the whole thing fits in 6GB.
+就这些。训练循环不变，数据流水线也不变。基座模型现在以 4-bit 形式驻留，LoRA 适配器以 fp16 训练，整体可以压进 6GB。
 
-For training with the Hugging Face Trainer:
+如果你使用 Hugging Face Trainer 训练：
 
 ```python
 from transformers import TrainingArguments, Trainer
@@ -500,48 +500,48 @@ trainer.train()
 model.save_pretrained("./lora-adapter")
 ```
 
-The saved adapter is 10-100MB. The base model stays untouched. You can share adapters on the Hugging Face Hub without redistributing the full model.
+保存下来的 adapter 只有 10-100MB。基座模型保持不变。你可以在 Hugging Face Hub 上分享 adapter，而不需要重新分发完整模型。
 
-## Ship It
+## 交付
 
-This lesson produces:
-- `outputs/prompt-lora-advisor.md` -- a prompt that helps you decide LoRA rank, target modules, and hyperparameters for your specific task
-- `outputs/skill-fine-tuning-guide.md` -- a skill that teaches agents the decision tree for when and how to fine-tune
+本课会产出：
+- `outputs/prompt-lora-advisor.md` —— 一个提示词，帮助你为具体任务选择 LoRA rank、目标模块和超参数
+- `outputs/skill-fine-tuning-guide.md` —— 一个 skill，用来教 agent 在何时以及如何进行微调的决策树
 
-## Exercises
+## 练习
 
-1. **Rank ablation study.** Run the demo with ranks 2, 4, 8, 16, 32, and 64. Plot final loss vs. rank. Find the point of diminishing returns where doubling the rank no longer halves the loss. For a simple classification task on 256-dim features, this should be around r=8-16.
+1. **Rank 消融实验。** 用 `r=2、4、8、16、32、64` 分别运行 demo。绘制最终 loss 与 rank 的关系图。找出收益递减点：即 rank 翻倍后，loss 不再近似减半的位置。对于 256 维特征上的简单分类任务，这个点通常在 `r=8-16` 左右。
 
-2. **Target module comparison.** Modify inject_lora to target only layer "0", only layer "2", only layer "4", and all three. Train each variant for 20 epochs. Compare convergence speed and final loss. This mirrors the real decision of targeting q_proj vs v_proj vs all linear layers.
+2. **目标模块对比。** 修改 `inject_lora`，分别只作用于层 `"0"`、只作用于层 `"2"`、只作用于层 `"4"`，以及三层全开。每种变体训练 20 个 epoch。比较收敛速度和最终 loss。这对应了真实世界中只打 `q_proj`、只打 `v_proj` 或所有线性层的选择问题。
 
-3. **Quantization error analysis.** Take the trained model's weight matrices before and after quantize_to_nf4 / dequantize_from_nf4. Compute the mean squared error, max absolute error, and the correlation between original and reconstructed weights. Experiment with block_size values of 32, 64, 128, and 256.
+3. **量化误差分析。** 对训练后模型的权重矩阵，在 `quantize_to_nf4 / dequantize_from_nf4` 前后分别取值。计算均方误差、最大绝对误差，以及原始权重与重建权重之间的相关性。尝试 `block_size=32、64、128、256`。
 
-4. **Multi-adapter serving.** Train two LoRA adapters on different subsets of the data (even indices vs odd indices). Save both adapters. Load the base model once, then swap adapters and verify that each produces different outputs on the same input. This is how production systems serve multiple fine-tuned models from one base.
+4. **多 adapter 服务。** 在数据的不同子集上训练两个 LoRA adapter（偶数索引 vs 奇数索引）。保存两个 adapter。只加载一次基座模型，然后切换 adapter，并验证同一输入会产生不同输出。这就是生产系统如何用同一个基座服务多个微调模型。
 
-5. **Merge vs. unmerged inference.** Compare the output of the LoRA model before and after merge_lora_weights on the same 100 inputs. Verify the outputs are identical (within floating-point tolerance of 1e-5). Then benchmark inference speed for both -- merged should be slightly faster since it's a single matrix multiply instead of two.
+5. **合并 vs 未合并推理。** 在相同的 100 个输入上，比较 `merge_lora_weights` 前后 LoRA 模型的输出。验证两者输出一致（在 `1e-5` 的浮点容忍范围内）。然后对两者的推理速度做 benchmark——合并后的版本应略快，因为只需一次矩阵乘法，而不是两次。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
-|------|----------------|----------------------|
-| LoRA | "Efficient fine-tuning" | Low-Rank Adaptation: freeze base weights, train two small matrices A and B whose product approximates the full weight update |
-| QLoRA | "Fine-tune on a laptop" | Quantized LoRA: load the base model in 4-bit NF4, train LoRA adapters in fp16 on top, enabling 7B fine-tuning in 6GB VRAM |
-| Rank (r) | "How much the model can learn" | The inner dimension of the A and B matrices; controls expressiveness vs. parameter count |
-| Alpha | "LoRA learning rate" | Scaling factor applied to the LoRA output; alpha/r scales the adaptation's contribution to the final output |
-| NF4 | "4-bit quantization" | Normal Float 4: a 4-bit data type with quantization levels at normal distribution quantiles, optimal for neural network weights |
-| Adapter | "The small trained part" | The LoRA A and B matrices saved as a separate file (10-100MB), loadable on top of any copy of the base model |
-| Target modules | "Which layers to LoRA" | The specific linear layers (q_proj, v_proj, etc.) where LoRA adapters are injected |
-| Merging | "Bake it in" | Computing W + (alpha/r) * BA and replacing the original weight, eliminating the adapter overhead at inference |
-| Paged optimizers | "Don't OOM during training" | Offloading optimizer states (Adam momentum, variance) to CPU when GPU memory is exhausted |
-| Catastrophic forgetting | "Fine-tuning broke everything else" | When updating all weights causes the model to lose previously learned capabilities |
+| 术语 | 人们常说什么 | 实际含义 |
+|------|-------------|----------|
+| LoRA | “高效微调” | Low-Rank Adaptation：冻结基座权重，只训练两个小矩阵 A 和 B，它们的乘积近似完整的权重更新 |
+| QLoRA | “能在笔记本上微调” | Quantized LoRA：基座模型以 4-bit NF4 加载，在其上方用 fp16 训练 LoRA adapter，使 7B 模型可在 6GB VRAM 内微调 |
+| Rank（r） | “模型能学多少” | A 和 B 矩阵的内部维度；决定表达能力与参数量之间的权衡 |
+| Alpha | “LoRA 学习率” | 作用在 LoRA 输出上的缩放因子；`alpha/r` 会缩放适配分支对最终输出的贡献 |
+| NF4 | “4-bit 量化” | Normal Float 4：一种 4-bit 数据类型，其量化等级位于正态分布分位点上，专为神经网络权重设计 |
+| Adapter | “那个训练出来的小部分” | 作为独立文件保存的 LoRA A/B 矩阵（10-100MB），可叠加加载到任意一份基座模型上 |
+| 目标模块 | “哪些层要打 LoRA” | 注入 LoRA adapter 的具体线性层（如 `q_proj`、`v_proj` 等） |
+| 合并 | “烘焙进去” | 计算 `W + (alpha/r) * BA` 并替换原始权重，从而消除推理时的 adapter 开销 |
+| 分页优化器 | “训练时别 OOM” | 当 GPU 显存耗尽时，把优化器状态（Adam 的动量、方差）卸载到 CPU |
+| 灾难性遗忘 | “微调把其他能力搞坏了” | 当更新全部权重时，模型会丢失此前学到的其他能力 |
 
-## Further Reading
+## 延伸阅读
 
-- Hu et al., "LoRA: Low-Rank Adaptation of Large Language Models" (2021) -- the original paper introducing the low-rank decomposition method, tested on GPT-3 175B with rank as low as 4
-- Dettmers et al., "QLoRA: Efficient Finetuning of Quantized Language Models" (2023) -- introduces NF4, double quantization, and paged optimizers, enabling 65B fine-tuning on a single 48GB GPU
-- PEFT library documentation (huggingface.co/docs/peft) -- the standard library for LoRA, QLoRA, and other parameter-efficient methods in the Hugging Face ecosystem
-- Yadav et al., "TIES-Merging: Resolving Interference When Merging Models" (2023) -- techniques for combining multiple LoRA adapters without quality degradation
-- [Rafailov et al., "Direct Preference Optimization: Your Language Model is Secretly a Reward Model" (NeurIPS 2023)](https://arxiv.org/abs/2305.18290) -- DPO derivation; the preference-tuning stage that comes after SFT, no reward model needed.
-- [TRL documentation](https://huggingface.co/docs/trl/) -- official reference for `SFTTrainer`, `DPOTrainer`, `KTOTrainer`, and the integration surface with PEFT/bitsandbytes/Unsloth.
-- [Unsloth documentation](https://docs.unsloth.ai/) -- fused kernels that double fine-tuning throughput and halve memory; the performance layer under TRL.
-- [Axolotl documentation](https://axolotl-ai-cloud.github.io/axolotl/) -- YAML-configured multi-GPU SFT/DPO/QLoRA trainer; the config-as-code alternative to hand-written scripts.
+- Hu et al., "LoRA: Low-Rank Adaptation of Large Language Models" (2021) —— 提出低秩分解方法的原始论文，在 GPT-3 175B 上测试时 rank 甚至低到 4
+- Dettmers et al., "QLoRA: Efficient Finetuning of Quantized Language Models" (2023) —— 提出了 NF4、双重量化和分页优化器，使得单张 48GB GPU 上微调 65B 成为可能
+- PEFT library documentation (huggingface.co/docs/peft) —— Hugging Face 生态中 LoRA、QLoRA 以及其他高效参数方法的标准库文档
+- Yadav et al., "TIES-Merging: Resolving Interference When Merging Models" (2023) —— 介绍如何在不损失质量的情况下合并多个 LoRA adapter
+- [Rafailov et al., "Direct Preference Optimization: Your Language Model is Secretly a Reward Model" (NeurIPS 2023)](https://arxiv.org/abs/2305.18290) —— DPO 的推导；这是 SFT 之后的偏好微调阶段，不需要奖励模型。
+- [TRL documentation](https://huggingface.co/docs/trl/) —— `SFTTrainer`、`DPOTrainer`、`KTOTrainer` 以及其与 PEFT/bitsandbytes/Unsloth 集成面的官方参考。
+- [Unsloth documentation](https://docs.unsloth.ai/) —— 通过融合 kernel 将微调吞吐翻倍、显存减半；TRL 下层的重要性能层。
+- [Axolotl documentation](https://axolotl-ai-cloud.github.io/axolotl/) —— 基于 YAML 配置的多 GPU SFT/DPO/QLoRA 训练器；相对于手写脚本的 config-as-code 方案。

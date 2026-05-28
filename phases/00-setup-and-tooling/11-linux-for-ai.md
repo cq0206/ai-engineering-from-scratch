@@ -1,47 +1,47 @@
-# Linux for AI
+# AI 工程中的 Linux
 
-> Most AI runs on Linux. You need to know enough to not be stuck.
+> 大多数 AI 都跑在 Linux 上。你需要知道足够多的内容，才不会被卡住。
 
-**Type:** Learn
-**Languages:** --
-**Prerequisites:** Phase 0, Lesson 01
-**Time:** ~30 minutes
+**类型：** 学习
+**语言：** --
+**前置要求：** 第 0 阶段，第 01 课
+**时长：** ~30 分钟
 
-## Learning Objectives
+## 学习目标
 
-- Navigate the Linux file system and perform essential file operations from the command line
-- Manage file permissions with `chmod` and `chown` to resolve "Permission denied" errors
-- Install system packages with `apt` and set up a fresh GPU box for AI work
-- Identify macOS-to-Linux differences that commonly trip up developers working on remote machines
+- 从命令行导航 Linux 文件系统，并完成关键的文件操作
+- 使用 `chmod` 和 `chown` 管理文件权限，解决 “Permission denied” 错误
+- 使用 `apt` 安装系统包，并为 AI 工作配置一台全新的 GPU 机器
+- 识别 macOS 与 Linux 之间那些最容易让远程开发者踩坑的差异
 
-## The Problem
+## 问题
 
-You develop on macOS or Windows. But the moment you SSH into a cloud GPU box, rent a Lambda instance, or spin up an EC2 machine, you land in Ubuntu. The terminal is your only interface. There is no Finder, no Explorer, no GUI. If you can't navigate the file system, install packages, and manage processes from the command line, you're stuck paying for idle GPU hours while googling "how to unzip a file in Linux."
+你也许在 macOS 或 Windows 上开发。但一旦你通过 SSH 登录云 GPU 机器、租用 Lambda 实例，或者启动一台 EC2 机器，你落地的就是 Ubuntu。终端是你唯一的界面。没有 Finder，没有 Explorer，也没有 GUI。如果你不能通过命令行导航文件系统、安装软件包、管理进程，你就只能一边为闲置的 GPU 小时付费，一边搜索 “how to unzip a file in Linux”。
 
-This is a survival guide. It covers exactly what you need to operate on a remote Linux machine for AI work. Nothing more.
+这是一份生存指南。它只覆盖你在远程 Linux 机器上做 AI 工作时真正需要的内容，不多不少。
 
-## File System Layout
+## 文件系统布局
 
-Linux organizes everything under a single root `/`. There is no `C:\` or `/Volumes`. The directories you'll actually touch:
+Linux 把所有内容都组织在单一根目录 `/` 下。没有 `C:\`，也没有 `/Volumes`。你真正会接触的目录如下：
 
 ```mermaid
 graph TD
-    root["/"] --> home["home/your-username/<br/>Your files — clone repos, run training"]
-    root --> tmp["tmp/<br/>Temporary files, cleared on reboot"]
-    root --> usr["usr/<br/>System programs and libraries"]
-    root --> etc["etc/<br/>Config files"]
-    root --> varlog["var/log/<br/>Logs — check when something breaks"]
-    root --> mnt["mnt/ or /media/<br/>External drives and volumes"]
-    root --> proc["proc/ and /sys/<br/>Virtual files — kernel and hardware info"]
+    root["/"] --> home["home/your-username/<br/>你的文件——克隆仓库、运行训练"]
+    root --> tmp["tmp/<br/>临时文件，重启后会清空"]
+    root --> usr["usr/<br/>系统程序与库"]
+    root --> etc["etc/<br/>配置文件"]
+    root --> varlog["var/log/<br/>日志——出问题时先看这里"]
+    root --> mnt["mnt/ 或 /media/<br/>外部驱动器与卷"]
+    root --> proc["proc/ 与 /sys/<br/>虚拟文件——内核与硬件信息"]
 ```
 
-Your home directory is `~` or `/home/your-username`. Almost everything you do happens here.
+你的主目录是 `~` 或 `/home/your-username`。你做的几乎所有事情都发生在这里。
 
-## Essential Commands
+## 核心命令
 
-These are the 15 commands that cover 95% of what you'll do on a remote GPU box.
+下面这 15 个命令，覆盖了你在远程 GPU 机器上 95% 的操作。
 
-### Moving Around
+### 目录导航
 
 ```bash
 pwd                         # Where am I?
@@ -52,7 +52,7 @@ cd ~                        # Go home
 cd ..                       # Go up one level
 ```
 
-### Files and Directories
+### 文件与目录
 
 ```bash
 mkdir my-project            # Create a directory
@@ -68,9 +68,9 @@ rm file.txt                 # Delete a file (no trash, it's gone)
 rm -rf my-dir/              # Delete a directory and everything inside
 ```
 
-`rm -rf` is permanent. There is no undo. Double-check the path before hitting enter.
+`rm -rf` 是永久删除。没有撤销。敲回车前先再检查一遍路径。
 
-### Reading Files
+### 读取文件
 
 ```bash
 cat file.txt                # Print entire file
@@ -80,7 +80,7 @@ tail -f log.txt             # Follow a log file in real time (Ctrl+C to stop)
 less file.txt               # Scroll through a file (q to quit)
 ```
 
-### Searching
+### 搜索
 
 ```bash
 grep "error" training.log           # Find lines containing "error"
@@ -91,9 +91,9 @@ find . -name "*.py"                 # Find all Python files under current dir
 find . -name "*.ckpt" -size +1G     # Find checkpoint files larger than 1GB
 ```
 
-## Permissions
+## 权限
 
-Every file in Linux has an owner and permission bits. You'll run into this when scripts won't execute or you can't write to a directory.
+Linux 中的每个文件都有所有者和权限位。你会在脚本无法执行，或者不能向某个目录写入时碰到它。
 
 ```bash
 ls -l train.py
@@ -103,7 +103,7 @@ ls -l train.py
 #        ^^        everyone else: read only
 ```
 
-Common fixes:
+常见修复：
 
 ```bash
 chmod +x train.sh           # Make a script executable
@@ -113,11 +113,11 @@ chmod 644 config.yaml       # Owner: read+write, others: read only
 chown user:group file.txt   # Change who owns a file (needs sudo)
 ```
 
-When something says "Permission denied," it's almost always a permissions issue. `chmod +x` or `sudo` will fix most cases.
+当你看到 “Permission denied” 时，几乎总是权限问题。大多数情况用 `chmod +x` 或 `sudo` 就能解决。
 
-## Package Management (apt)
+## 包管理（apt）
 
-Ubuntu uses `apt`. This is how you install system-level software.
+Ubuntu 使用 `apt`。这就是你安装系统级软件的方式。
 
 ```bash
 sudo apt update             # Refresh the package list (always do this first)
@@ -129,7 +129,7 @@ apt list --installed        # What's installed?
 sudo apt remove htop        # Uninstall
 ```
 
-Common packages you'll install on a fresh GPU box:
+一台全新的 GPU 机器上，你常装的软件包包括：
 
 ```bash
 sudo apt update && sudo apt install -y \
@@ -143,9 +143,9 @@ sudo apt update && sudo apt install -y \
     python3-venv
 ```
 
-## Users and sudo
+## 用户与 sudo
 
-You're usually logged in as a regular user. Some operations need root (admin) access.
+你通常是以普通用户身份登录的。有些操作需要 root（管理员）权限。
 
 ```bash
 whoami                      # What user am I?
@@ -153,11 +153,11 @@ sudo command                # Run a single command as root
 sudo su                     # Become root (exit to go back, use sparingly)
 ```
 
-On cloud GPU instances, you're typically the only user and already have sudo access. Don't run everything as root. Use sudo only when needed.
+在云 GPU 实例上，你通常是唯一用户，而且已经有 sudo 权限。不要把所有事情都用 root 来跑。只在需要时使用 sudo。
 
-## Processes and systemd
+## 进程与 systemd
 
-When your training hangs, or you need to check what's running:
+当你的训练卡住，或者你需要查看当前有什么在运行时：
 
 ```bash
 htop                        # Interactive process viewer (q to quit)
@@ -167,7 +167,7 @@ kill -9 12345               # Force kill (use when graceful doesn't work)
 nvidia-smi                  # GPU processes and memory usage
 ```
 
-systemd manages services (background daemons). You'll use it if you run inference servers:
+systemd 负责管理服务（后台守护进程）。如果你运行推理服务器，就会用到它：
 
 ```bash
 sudo systemctl start nginx          # Start a service
@@ -177,9 +177,9 @@ sudo systemctl status nginx         # Check if it's running
 sudo systemctl enable nginx         # Start automatically on boot
 ```
 
-## Disk Space
+## 磁盘空间
 
-GPU boxes often have limited disk space. Models and datasets fill it fast.
+GPU 机器的磁盘空间通常有限。模型和数据集很快就能把它塞满。
 
 ```bash
 df -h                       # Disk usage for all mounted drives
@@ -193,7 +193,7 @@ du -sh /data/checkpoints/   # Check how big your checkpoints are
 du -h --max-depth=1 / 2>/dev/null | sort -hr | head -20
 ```
 
-Common space savers:
+常见的省空间做法：
 
 ```bash
 # Clear pip cache
@@ -206,9 +206,9 @@ sudo apt clean
 rm -rf checkpoints/epoch_01/ checkpoints/epoch_02/
 ```
 
-## Networking
+## 网络
 
-You'll download models, transfer files, and hit APIs from the command line.
+你会在命令行里下载模型、传输文件，并调用 API。
 
 ```bash
 # Download files
@@ -226,11 +226,11 @@ rsync -avz --progress ./data/ user@remote:/data/
 rsync -avz --progress user@remote:/results/ ./results/
 ```
 
-Use `rsync` over `scp` for anything large. It only transfers changed bytes and handles interrupted connections.
+凡是体量大的传输，一律优先用 `rsync`。它只会传输发生变化的字节，而且能处理中断连接。
 
-## tmux: Keep Sessions Alive
+## tmux：让会话保持存活
 
-When you SSH into a remote box, closing your laptop kills your training run. tmux prevents this.
+当你通过 SSH 连接到远程机器时，合上笔记本就可能直接把训练任务杀掉。tmux 可以避免这种情况。
 
 ```bash
 tmux new -s train           # Start a new session named "train"
@@ -246,11 +246,11 @@ tmux attach -t train        # Reattach to session
 # Ctrl+B, then arrow keys   # Switch between panes
 ```
 
-Always run long training jobs inside tmux. Always.
+长时间训练任务一定要放在 tmux 里。一定要。
 
-## WSL2 for Windows Users
+## 面向 Windows 用户的 WSL2
 
-If you're on Windows, WSL2 gives you a real Linux environment without dual-booting.
+如果你使用 Windows，WSL2 能在无需双系统的情况下给你一个真正的 Linux 环境。
 
 ```bash
 # In PowerShell (admin)
@@ -260,26 +260,26 @@ wsl --install -d Ubuntu-24.04
 sudo apt update && sudo apt upgrade -y
 ```
 
-WSL2 runs a real Linux kernel. Everything in this lesson works inside it. Your Windows files are at `/mnt/c/Users/YourName/` from inside WSL.
+WSL2 运行的是真正的 Linux 内核。本课中的一切都可以在里面工作。在 WSL 内部，你的 Windows 文件位于 `/mnt/c/Users/YourName/`。
 
-GPU passthrough works with NVIDIA drivers installed on the Windows side. Install the Windows NVIDIA driver (not the Linux one), and CUDA will be available inside WSL2.
+只要在 Windows 侧安装好 NVIDIA 驱动，GPU 直通就能工作。安装 Windows 版 NVIDIA 驱动（不是 Linux 版），随后 CUDA 就会在 WSL2 内可用。
 
-## Gotchas: macOS to Linux
+## 易踩坑：从 macOS 到 Linux
 
-Things that will trip you up if you're coming from macOS:
+如果你是从 macOS 过来的，下面这些点很容易绊住你：
 
-| macOS | Linux | Notes |
+| macOS | Linux | 说明 |
 |-------|-------|-------|
-| `brew install` | `sudo apt install` | Different package names sometimes. `brew install htop` vs `sudo apt install htop` works the same, but `brew install readline` vs `sudo apt install libreadline-dev` does not. |
-| `open file.txt` | `xdg-open file.txt` | But you won't have a GUI on a remote box. Use `cat` or `less`. |
-| `pbcopy` / `pbpaste` | Not available | Pipe to/from clipboard doesn't exist over SSH. |
-| `~/.zshrc` | `~/.bashrc` | macOS defaults to zsh. Most Linux servers use bash. |
-| `/opt/homebrew/` | `/usr/bin/`, `/usr/local/bin/` | Binaries live in different places. |
-| `sed -i '' 's/a/b/' file` | `sed -i 's/a/b/' file` | macOS sed needs an empty string after `-i`. Linux does not. |
-| Case-insensitive filesystem | Case-sensitive filesystem | `Model.py` and `model.py` are two different files on Linux. |
-| Line endings `\n` | Line endings `\n` | Same. But Windows uses `\r\n`, which breaks bash scripts. Run `dos2unix` to fix. |
+| `brew install` | `sudo apt install` | 有时软件包名称会不同。`brew install htop` 和 `sudo apt install htop` 的效果一样，但 `brew install readline` 与 `sudo apt install libreadline-dev` 就不是一回事。 |
+| `open file.txt` | `xdg-open file.txt` | 但远程机器通常没有 GUI。用 `cat` 或 `less`。 |
+| `pbcopy` / `pbpaste` | 不可用 | 通过 SSH 时，无法像本地那样把内容直接管道到/从剪贴板。 |
+| `~/.zshrc` | `~/.bashrc` | macOS 默认是 zsh。大多数 Linux 服务器使用 bash。 |
+| `/opt/homebrew/` | `/usr/bin/`, `/usr/local/bin/` | 二进制文件所在位置不同。 |
+| `sed -i '' 's/a/b/' file` | `sed -i 's/a/b/' file` | macOS 的 sed 在 `-i` 后需要一个空字符串参数，Linux 不需要。 |
+| 区分大小写不敏感的文件系统 | 区分大小写敏感的文件系统 | 在 Linux 上，`Model.py` 和 `model.py` 是两个不同文件。 |
+| 行结束符 `\n` | 行结束符 `\n` | 这一点相同。但 Windows 使用 `\r\n`，会把 bash 脚本搞坏。用 `dos2unix` 修复。 |
 
-## Quick Reference Card
+## 速查卡
 
 ```
 Navigation:     pwd, ls, cd, find
@@ -294,10 +294,11 @@ Network:        curl, wget, scp, rsync
 Sessions:       tmux new/attach/detach
 ```
 
-## Exercises
+## 练习
 
-1. SSH into any Linux machine (or open WSL2) and navigate to your home directory. Create a project folder, create three empty files inside it with `touch`, then list them with `ls -la`.
-2. Install `htop` with apt, run it, and identify which process is using the most memory.
-3. Start a tmux session, run `sleep 300` inside it, detach, list sessions, and reattach.
-4. Use `df -h` to check available disk space, then use `du -sh ~/.cache/*` to find what's taking up space in your cache.
-5. Transfer a file from your local machine to a remote one using `scp`, then do the same transfer with `rsync` and compare the experience.
+1. 通过 SSH 登录任意一台 Linux 机器（或者打开 WSL2），进入你的主目录。创建一个项目文件夹，用 `touch` 在里面创建三个空文件，然后用 `ls -la` 列出来。
+2. 用 apt 安装 `htop`，运行它，并找出哪个进程占用了最多内存。
+3. 启动一个 tmux 会话，在里面运行 `sleep 300`，分离会话，列出所有会话，再重新附着。
+4. 用 `df -h` 查看可用磁盘空间，再用 `du -sh ~/.cache/*` 找出缓存里是什么在占空间。
+5. 用 `scp` 把一个文件从本地机器传到远程机器，再用 `rsync` 做同样的传输，对比一下体验。
+
