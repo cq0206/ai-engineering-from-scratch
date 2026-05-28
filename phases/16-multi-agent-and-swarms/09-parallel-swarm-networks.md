@@ -1,129 +1,129 @@
-# Parallel / Swarm / Networked Architectures
+# 并行 / 群体 / 网络化架构
 
-> Contrast with supervisor: no central decider. Agents read a shared event bus, pick up work asynchronously, write results back. LangGraph explicitly supports "Swarm Architecture" for decentralized, dynamic environments. Matrix (arXiv:2511.21686) represents both control and data flow as serialized messages passed through distributed queues to eliminate the orchestrator bottleneck. The tradeoff is explicit: determinism and traceability for scalability. Swarm fits tasks with many independent sub-problems; it does not fit tasks that need a single coherent plan.
+> 与 supervisor 对比：没有中央决策者。智能体读取共享事件总线，异步领取工作，再把结果写回。LangGraph 明确支持适用于去中心化、动态环境的“Swarm Architecture”。Matrix（arXiv:2511.21686）将控制流和数据流都表示为通过分布式队列传递的序列化消息，从而消除编排器瓶颈。这里的权衡非常明确：用确定性和可追踪性换取可扩展性。群体适合包含大量独立子问题的任务；不适合需要单一一致计划的任务。
 
-**Type:** Learn + Build
-**Languages:** Python (stdlib, `threading`, `queue`)
-**Prerequisites:** Phase 16 · 05 (Supervisor Pattern), Phase 16 · 04 (Primitive Model)
-**Time:** ~75 minutes
+**Type:** 学习 + 构建
+**Languages:** Python（stdlib、`threading`、`queue`）
+**Prerequisites:** 第 16 阶段 · 05（Supervisor Pattern），第 16 阶段 · 04（Primitive Model）
+**Time:** ~75 分钟
 
-## Problem
+## 问题
 
-Supervisor scales to a few workers. What about hundreds? The supervisor itself becomes the bottleneck: every decision about who does what funnels through one agent. One slow plan step stalls the whole system.
+Supervisor 可以扩展到少量 worker。那几百个呢？Supervisor 本身会变成瓶颈：关于谁做什么的每一个决策都要经过这一个智能体。某个缓慢的计划步骤就会拖住整个系统。
 
-Swarm architectures flip the design. Instead of a central planner dispatching work, workers pick work off a shared queue. The "coordination" is baked into the event bus semantics. No orchestrator; the system scales until the queue does.
+群体架构 (swarm architecture) 则把设计反过来。不是由中央规划器分发工作，而是由 worker 从共享队列中自行领取工作。“协调”被直接编码进事件总线语义中。没有编排器；系统能扩展到什么程度，取决于队列本身能扩展到什么程度。
 
-## Concept
+## 概念
 
-### The shape
+### 结构形态
 
 ```
-                ┌──── shared queue ────┐
-                │                      │
-       ┌────────┼────────┐  ◄──────┬───┘
-       ▼        ▼        ▼         │
-     Worker  Worker  Worker   Worker
-      A       B       C        D
-       │        │        │         │
-       └────────┴────────┴─────────┘
+                ┌──── 共享队列 ────┐
+                │                  │
+       ┌────────┼────────┐  ◄────┬───┘
+       ▼        ▼        ▼       │
+     工作者    工作者    工作者  工作者
+      A         B         C       D
+       │        │        │       │
+       └────────┴────────┴───────┘
                  │
                  ▼
-            results pool
+               结果池
 ```
 
-No orchestrator. Each worker repeats: pull a task, process, write result (and optionally enqueue follow-ups).
+没有编排器。每个 worker 都重复同样流程：拉取一个任务、处理它、写回结果（并可选择将后续任务重新入队）。
 
-### When swarm fits
+### 群体适用的场景
 
-- **Many independent tasks.** Scraping, transforming, classifying. Tasks do not depend on each other.
-- **Variable-duration work.** If some tasks take 100ms and others take 10s, a swarm balances load automatically — fast workers pull next jobs. A supervisor has to anticipate duration.
-- **Throughput over determinism.** You care about total completion time, not strict ordering.
+- **大量独立任务。** 抓取、转换、分类。任务彼此不依赖。
+- **时长差异很大的工作。** 如果有些任务耗时 100ms，而另一些耗时 10s，群体会自动平衡负载——快的 worker 会继续领取下一个任务。Supervisor 则必须提前预估时长。
+- **吞吐量优先于确定性。** 你关心的是总体完成时间，而不是严格顺序。
 
-### When swarm fails
+### 群体失效的场景
 
-- **Ordered workflows.** If step 3 needs step 2's output, a swarm risks step 3 firing before step 2 is done.
-- **Global-plan tasks.** Complex research questions benefit from a planner. A swarm of researchers produces independent facts, not a coherent report.
-- **Debugging.** With no central log and asynchronous work, reproducing a bug is expensive.
+- **有序工作流。** 如果第 3 步需要第 2 步的输出，群体就有可能在第 2 步完成前触发第 3 步。
+- **全局规划型任务。** 复杂研究问题更适合规划器。一个由研究员组成的群体会产出相互独立的事实，而不是一份连贯报告。
+- **调试。** 没有中央日志且工作异步执行时，复现 bug 的成本很高。
 
-### Matrix (arXiv:2511.21686)
+### Matrix（arXiv:2511.21686）
 
-Matrix is the 2025 paper that takes swarm to its natural conclusion: both control flow and data flow are serialized messages on distributed queues. No central coordinator. Fault tolerance comes from message durability. Scalability is the message broker's problem, not the system's.
+Matrix 是 2025 年的一篇论文，它把群体推到了自然终点：控制流和数据流都作为分布式队列上的序列化消息来处理。没有中央协调器。容错能力来自消息持久化。可扩展性成为消息代理的问题，而不是系统本身的问题。
 
-Contribution: a programming model where multi-agent coordination is "what message topic does this agent subscribe to?" rather than "which agent does the supervisor pick next?" This makes the system look like a pub/sub event mesh.
+它的贡献在于一种编程模型：多智能体协调不再是“supervisor 下一步该选哪个智能体？”，而是“这个智能体订阅了哪个消息主题？”。这让系统看起来像一个发布/订阅（pub/sub）事件网格。
 
-### LangGraph's Swarm Architecture
+### LangGraph 的 Swarm Architecture
 
-LangGraph 2025 docs explicitly describe "Swarm Architecture" as one of the multi-agent patterns: agents are nodes, but edges form a directed graph with cycles and any node can be activated from the pool. A worker picks from available work by condition, not by supervisor assignment.
+LangGraph 2025 文档明确把 “Swarm Architecture” 描述为一种多智能体模式：智能体是节点，但边组成的是一个带环的有向图，而且池中的任意节点都可以被激活。worker 根据条件从可用工作中领取任务，而不是由 supervisor 指派。
 
-### Failure mode: starvation and hot-spotting
+### 失败模式：饥饿与热点集中
 
-If all workers pull the fastest-available task, long-running tasks never get picked until they are the only ones left. Classic queue starvation.
+如果所有 worker 都去领取当前最容易拿到的任务，那么长时间运行的任务就永远不会被领取，直到它们成为队列里仅剩的任务。这就是经典的队列饥饿 (starvation)。
 
-Mitigations:
-- Priority queues with explicit aging (increase priority with wait time).
-- Worker specialization: some workers only take "long" tasks.
-- Back-pressure: limit how many fast tasks enter the queue.
+缓解方式：
+- 采用带显式老化机制的优先队列（等待时间越长，优先级越高）。
+- 工作者专业化：部分 worker 只接“长任务”。
+- 背压 (back-pressure)：限制有多少快速任务可以进入队列。
 
-### The content-based routing link
+### 与基于内容路由的联系
 
-Swarm pairs naturally with content-based routing (Lesson 22). Instead of a generic queue, have one queue per message type. Specialist workers subscribe only to their type. This is the basis for message-bus architectures that scale to thousands of agents.
+群体天然适合与基于内容的路由（第 22 课）配合使用。与其使用一个通用队列，不如为每种消息类型准备一个队列。专家型 worker 只订阅自己负责的类型。这正是能够扩展到数千个智能体的消息总线架构基础。
 
-## Build It
+## 动手构建
 
-`code/main.py` implements a swarm of 4 worker threads pulling from a shared `queue.Queue`. Tasks have variable durations (some fast, some slow). The demo contrasts:
+`code/main.py` 实现了一个由 4 个 worker 线程组成的群体，它们从共享 `queue.Queue` 中领取任务。任务具有可变时长（有些快，有些慢）。该示例对比了：
 
-- **Sequential baseline:** one worker processes all tasks serially.
-- **Fixed assignment:** each task pre-assigned to a specific worker (supervisor-style).
-- **Swarm:** workers pull from a shared queue.
+- **顺序基线：** 一个 worker 串行处理所有任务。
+- **固定分配：** 每个任务预先分配给特定 worker（supervisor 风格）。
+- **群体：** worker 从共享队列中领取任务。
 
-Swarm balances load automatically; fixed assignment leaves fast workers idle when their assigned task is slow.
+群体会自动平衡负载；而固定分配会让快速 worker 在自己分到的任务较慢时空闲下来。
 
-Run:
+运行：
 
 ```
 python3 code/main.py
 ```
 
-Output shows per-worker task counts (swarm distributes unevenly but optimally) and wall-clock times.
+输出会显示每个 worker 处理的任务数量（群体的分配并不均匀，但却是最优的）以及整体墙钟时间。
 
-## Use It
+## 使用它
 
-`outputs/skill-swarm-fit.md` evaluates whether a task should use swarm vs supervisor. Inputs: task independence, duration variance, ordering requirements, debuggability needs.
+`outputs/skill-swarm-fit.md` 用于评估一个任务应该使用群体还是 supervisor。输入包括：任务独立性、时长方差、顺序要求和可调试性需求。
 
-## Ship It
+## 交付它
 
-Checklist:
+检查清单：
 
-- **Priority queue with aging.** Prevent long-task starvation.
-- **Worker idempotency.** A task may be pulled more than once if a worker crashes mid-run. Workers must be idempotent.
-- **Durable queue.** Use Kafka, Redis Streams, or a database-backed queue for production. `queue.Queue` is in-memory only.
-- **Observability per task.** Every task has a trace ID; every worker logs start/end with it.
-- **Back-pressure.** If the queue grows faster than workers drain it, slow the producer.
+- **带老化机制的优先队列。** 防止长任务发生饥饿。
+- **幂等 worker。** 如果 worker 在运行中途崩溃，一个任务可能会被领取不止一次。worker 必须是幂等的。
+- **持久队列。** 生产环境应使用 Kafka、Redis Streams 或数据库支撑的队列。`queue.Queue` 只存在于内存中。
+- **按任务维度的可观测性。** 每个任务都要有 trace ID；每个 worker 都要用该 ID 记录开始/结束日志。
+- **背压。** 如果队列增长速度快于 worker 清空它的速度，就要让生产者放慢速度。
 
-## Exercises
+## 练习
 
-1. Run `code/main.py`. How much faster is swarm than sequential on the variable-duration workload? How much faster than fixed assignment?
-2. Add a priority queue variant (use `queue.PriorityQueue`). Assign priority by task "importance" field. Observe whether low-priority tasks ever starve under continuous load.
-3. Implement a hot-spot detector: log when any worker processes 3× more tasks than the slowest worker. What does that indicate about task-duration distribution?
-4. Read the Matrix paper (arXiv:2511.21686) abstract and Section 3. Identify one specific tradeoff Matrix accepts (scalability gain) and one it gives up (traceability, determinism).
-5. Convert the swarm demo to use a `queue.Queue` of (task_type, payload) tuples, with workers subscribing only to specific types. What routing rules make sense when tasks are heterogeneous?
+1. 运行 `code/main.py`。在这种可变时长负载下，群体比顺序执行快多少？比固定分配快多少？
+2. 添加一个优先队列变体（使用 `queue.PriorityQueue`）。根据任务的“importance”字段分配优先级。观察在持续负载下，低优先级任务是否会一直饥饿。
+3. 实现一个热点检测器：当某个 worker 处理的任务数达到最慢 worker 的 3× 时进行记录。这说明任务时长分布有什么特征？
+4. 阅读 Matrix 论文（arXiv:2511.21686）的摘要和第 3 节。指出 Matrix 接受的一项具体权衡（可扩展性收益）以及它放弃的一项能力（可追踪性、确定性）。
+5. 将群体示例改为使用一个由 `(task_type, payload)` 元组构成的 `queue.Queue`，并让 worker 只订阅特定类型。任务具有异质性时，什么样的路由规则才合理？
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们怎么说 | 实际含义 |
 |------|----------------|------------------------|
-| Swarm architecture | "Decentralized agents" | Workers pull from shared queue; no central orchestrator. |
-| Event bus | "Agents subscribe to topics" | Message broker that routes tasks to workers by type or content. |
-| Starvation | "Task never runs" | Low-priority task never gets picked because higher-priority work arrives continuously. |
-| Hot-spotting | "One worker drowns" | Load imbalance where one worker gets most tasks. |
-| Back-pressure | "Slow down the producer" | Mechanism that signals upstream to stop producing when the queue fills up. |
-| Idempotent worker | "Safe to re-run" | A task processed twice produces the same result. Required because workers may crash mid-run. |
-| Durable queue | "Survives crashes" | Queue backed by disk or replicated storage; tasks are not lost when a worker crashes. |
-| Matrix framework | "Full message-passing swarm" | Both data and control flow are serialized messages on distributed queues. |
+| 群体架构 | “去中心化智能体” | worker 从共享队列中领取任务；没有中央编排器。 |
+| 事件总线 | “智能体订阅主题” | 按类型或内容把任务路由给 worker 的消息代理。 |
+| 饥饿 | “任务永远不运行” | 低优先级任务因为高优先级工作持续到来而始终无法被领取。 |
+| 热点集中 | “某个 worker 被淹没” | 一种负载不均衡现象：某个 worker 获得了大多数任务。 |
+| 背压 | “让生产者慢下来” | 当队列被填满时，向上游发出停止生产信号的机制。 |
+| 幂等 worker | “可安全重跑” | 一个任务被处理两次也会产生相同结果。之所以需要这样，是因为 worker 可能在运行中途崩溃。 |
+| 持久队列 | “崩溃后也能保留” | 由磁盘或复制存储支撑的队列；worker 崩溃时任务不会丢失。 |
+| Matrix 框架 | “完全基于消息传递的群体” | 数据流和控制流都表现为分布式队列上的序列化消息。 |
 
-## Further Reading
+## 延伸阅读
 
-- [LangGraph workflows and agents — Swarm Architecture](https://docs.langchain.com/oss/python/langgraph/workflows-agents) — explicit swarm support
-- [Matrix — A Decentralized Framework for Multi-Agent Systems](https://arxiv.org/abs/2511.21686) — full message-passing swarm
-- [Anthropic engineering — why supervisor not swarm in Research](https://www.anthropic.com/engineering/multi-agent-research-system) — why a specific production system explicitly chose supervisor over swarm
-- [AutoGen v0.4 actor-model docs](https://microsoft.github.io/autogen/stable/) — the event-driven actor rewrite, closer to swarm than v0.2's GroupChat
+- [LangGraph workflows and agents — Swarm Architecture](https://docs.langchain.com/oss/python/langgraph/workflows-agents) — 对群体的显式支持
+- [Matrix — A Decentralized Framework for Multi-Agent Systems](https://arxiv.org/abs/2511.21686) — 完全基于消息传递的群体
+- [Anthropic engineering — why supervisor not swarm in Research](https://www.anthropic.com/engineering/multi-agent-research-system) — 某个生产系统为何明确选择 supervisor 而非群体
+- [AutoGen v0.4 actor-model docs](https://microsoft.github.io/autogen/stable/) — 事件驱动的 actor 重写版本，比 v0.2 的 GroupChat 更接近群体

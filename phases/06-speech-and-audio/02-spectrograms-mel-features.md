@@ -1,41 +1,41 @@
-# Spectrograms, Mel Scale & Audio Features
+# 频谱图 (Spectrogram)、Mel 尺度 (Mel Scale) 与音频特征 (Audio Features)
 
-> Neural nets do not consume raw waveforms well. They consume spectrograms. They consume mel spectrograms even better. Every ASR, TTS, and audio classifier in 2026 lives or dies by this single preprocessing choice.
+> 神经网络并不擅长直接消费原始波形。它们更擅长消费频谱图；而对 Mel 频谱图 (Mel spectrogram) 的处理通常更好。到了 2026 年，几乎所有 ASR、TTS 和音频分类器的成败，都取决于这一项预处理选择。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 6 · 01 (Audio Fundamentals)
-**Time:** ~45 minutes
+**类型：** 构建
+**语言：** Python
+**前置条件：** 第 6 阶段 · 01（音频基础）
+**时长：** ~45 分钟
 
-## The Problem
+## 问题
 
-Take a 10-second 16 kHz clip. That is 160,000 floats, all in `[-1, 1]`, almost perfectly uncorrelated with the label "dog barking" or "the word cat". The raw waveform has the information but in a form the model cannot easily extract. Two identical phonemes spoken 100 ms apart have completely different raw samples.
+拿一段 10 秒、16 kHz 的音频片段来说，它包含 160,000 个浮点数，全部落在 `[-1, 1]` 范围内，与“狗叫声”或“单词 cat”这样的标签几乎没有直接相关性。原始波形确实包含信息，但它的表达形式并不便于模型提取。两个完全相同的音素，如果相隔 100 ms 发出，对应的原始采样点也会完全不同。
 
-A spectrogram fixes this. It collapses the temporal detail where human perception ignores it (microsecond jitter) and preserves the structure where perception attends (which frequencies are energetic, over time windows of ~10–25 ms).
+频谱图可以解决这个问题。它会压缩人类感知并不关注的时间细节（例如微秒级抖动），同时保留感知真正关注的结构（例如哪些频率在大约 10–25 ms 的时间窗内具有较强能量）。
 
-Mel spectrograms push further. Humans perceive pitch logarithmically: 100 Hz vs 200 Hz sounds "the same distance apart" as 1000 Hz vs 2000 Hz. The mel scale warps the frequency axis to match. A mel-scaled spectrogram is the single most important feature in speech ML from 2010 through 2026.
+Mel 频谱图还会更进一步。人类对音高的感知是对数型的：100 Hz 到 200 Hz，听起来与 1000 Hz 到 2000 Hz 的“距离感”大致相同。Mel 尺度正是通过扭曲频率轴来贴合这种感知方式。对于 2010 到 2026 年的语音 ML 而言，按 Mel 尺度表示的频谱图一直都是最重要的特征。
 
-## The Concept
+## 概念
 
-*Waveform to STFT to mel spectrogram to MFCC ladder*
+*从波形 (waveform) 到 STFT，再到 Mel 频谱图，最后到 MFCC 的处理阶梯*
 
-**STFT (Short-Time Fourier Transform).** Slice the waveform into overlapping frames (typical: 25 ms window, 10 ms hop = 400 samples / 160 samples at 16 kHz). Multiply each frame by a window function (Hann is the default; Hamming slightly different tradeoff). FFT each frame. Stack the magnitude spectra into a matrix of shape `(n_frames, n_freq_bins)`. That is your spectrogram.
+**STFT (Short-Time Fourier Transform，短时傅里叶变换)。** 先把波形切成彼此重叠的帧（典型配置：25 ms window、10 ms hop，在 16 kHz 下分别对应 400 samples / 160 samples）。然后对每一帧乘以窗口函数 (window function)；Hann 是默认选择，Hamming 则是在权衡上略有不同。接着对每一帧做 FFT，再把所有幅度谱堆叠成一个形状为 `(n_frames, n_freq_bins)` 的矩阵。这就是你的频谱图。
 
-**Log-magnitude.** Raw magnitudes span 5-6 orders of magnitude. Take `log(|X| + 1e-6)` or `20 * log10(|X|)` to compress dynamic range. Every production pipeline uses log-magnitude, not raw magnitude.
+**对数幅度 (Log-magnitude)。** 原始幅度往往跨越 5 到 6 个数量级，因此通常会取 `log(|X| + 1e-6)` 或 `20 * log10(|X|)` 来压缩动态范围。所有生产级流水线都会使用对数幅度，而不是原始幅度。
 
-**Mel scale.** Frequency `f` in Hz maps to mel `m` by `m = 2595 * log10(1 + f / 700)`. The mapping is roughly linear below 1 kHz and roughly logarithmic above. 80 mel bins covering 0–8 kHz is the standard ASR input.
+**Mel 尺度 (Mel scale)。** 以 Hz 为单位的频率 `f`，会通过 `m = 2595 * log10(1 + f / 700)` 映射到 mel `m`。在 1 kHz 以下，这种映射大致线性；在 1 kHz 以上，则大致呈对数关系。覆盖 0–8 kHz 的 80 个 mel bins，是标准的 ASR 输入配置。
 
-**Mel filterbank.** A set of triangular filters spaced equally on the mel scale. Each filter is a weighted sum of adjacent FFT bins. Multiplying the STFT magnitude by the filterbank matrix gives the mel spectrogram in one matmul.
+**Mel 滤波器组 (Mel filterbank)。** 它由一组在 Mel 尺度上等距分布的三角形滤波器组成。每个滤波器本质上都是相邻 FFT bins 的加权和。将 STFT 幅度与滤波器组矩阵相乘，就能通过一次 matmul 得到 Mel 频谱图。
 
-**Log-mel spectrogram.** `log(mel_spec + 1e-10)`. Whisper's input. Parakeet's input. SeamlessM4T's input. The universal 2026 audio frontend.
+**对数 Mel 频谱图 (Log-mel spectrogram)。** 其形式是 `log(mel_spec + 1e-10)`。这是 Whisper 的输入，也是 Parakeet 和 SeamlessM4T 的输入，更是 2026 年通用的音频前端表示。
 
-**MFCCs.** Take the log-mel spectrogram, apply a DCT (type II), keep the first 13 coefficients. Decorrelates the features and compresses further. Dominant feature until about 2015 when CNNs/Transformers on raw log-mels caught up. Still used in speaker recognition (x-vectors, ECAPA).
+**MFCCs。** 对对数 Mel 频谱图应用 DCT（type II），保留前 13 个系数，就能进一步去相关并压缩特征。在大约 2015 年之前，它一直是主流特征；之后，基于原始 log-mels 的 CNNs/Transformers 才逐渐追平并超越。即便如此，它在说话人识别中仍然常见（如 x-vectors、ECAPA）。
 
-**Resolution trade.** Larger FFT = better frequency resolution but worse time resolution. 25 ms / 10 ms is the audio-ML default; 50 ms / 12.5 ms for music; 5 ms / 2 ms for transient detection (drum hits, plosives).
+**分辨率权衡 (Resolution trade)。** 更大的 FFT 能带来更好的频率分辨率，但会牺牲时间分辨率。25 ms / 10 ms 是音频 ML 的默认配置；音乐任务常用 50 ms / 12.5 ms；瞬态检测（如鼓点、爆破音）则常用 5 ms / 2 ms。
 
-## Build It
+## 动手构建
 
-### Step 1: frame the waveform
+### 第 1 步：对波形分帧
 
 ```python
 def frame(signal, frame_len, hop):
@@ -43,9 +43,9 @@ def frame(signal, frame_len, hop):
     return [signal[i * hop : i * hop + frame_len] for i in range(n)]
 ```
 
-A 10-second 16 kHz clip with `frame_len=400, hop=160` yields 998 frames.
+对于一段 10 秒、16 kHz 的音频，如果设置 `frame_len=400, hop=160`，会得到 998 帧。
 
-### Step 2: Hann window
+### 第 2 步：Hann 窗
 
 ```python
 import math
@@ -54,9 +54,9 @@ def hann(N):
     return [0.5 * (1 - math.cos(2 * math.pi * n / (N - 1))) for n in range(N)]
 ```
 
-Multiply element-wise before the FFT. Removes spectral leakage caused by truncating at non-zero endpoints.
+在做 FFT 之前，先按元素逐一相乘。这样可以减小由于在非零端点处截断信号而产生的谱泄漏 (spectral leakage)。
 
-### Step 3: STFT magnitude
+### 第 3 步：计算 STFT 幅度
 
 ```python
 def stft_magnitude(signal, frame_len=400, hop=160):
@@ -65,9 +65,9 @@ def stft_magnitude(signal, frame_len=400, hop=160):
     return [magnitudes(dft([w * s for w, s in zip(win, f)])) for f in frames]
 ```
 
-Production uses `torch.stft` or `librosa.stft` (FFT-backed, vectorized). The loop here is pedagogical; it runs on short clips in `code/main.py`.
+生产环境里通常会使用 `torch.stft` 或 `librosa.stft`（基于 FFT 且已向量化）。这里的循环实现只是为了教学演示；它会在 `code/main.py` 中对短音频片段运行。
 
-### Step 4: mel filterbank
+### 第 4 步：构建 Mel 滤波器组
 
 ```python
 def hz_to_mel(f):
@@ -91,18 +91,18 @@ def mel_filterbank(n_mels, n_fft, sr, fmin=0, fmax=None):
     return fb
 ```
 
-80 mels covering 0–8 kHz with `n_fft=400` gives an `(80, 201)` matrix. Multiply the `(n_frames, 201)` STFT magnitude by the transpose to get `(n_frames, 80)` mel spectrogram.
+当 `n_fft=400` 时，覆盖 0–8 kHz 的 80 个 mels 会生成一个 `(80, 201)` 矩阵。将形状为 `(n_frames, 201)` 的 STFT 幅度矩阵与其转置相乘，就能得到形状为 `(n_frames, 80)` 的 Mel 频谱图。
 
-### Step 5: log-mel
+### 第 5 步：计算 log-mel
 
 ```python
 def log_mel(mel_spec, eps=1e-10):
     return [[math.log(max(v, eps)) for v in frame] for frame in mel_spec]
 ```
 
-Common alternatives: `librosa.power_to_db` (reference-normalized dB), `10 * log10(power + eps)`. Whisper uses a more involved clip + normalize routine (see Whisper's `log_mel_spectrogram`).
+常见替代方案包括：`librosa.power_to_db`（按参考值归一化的 dB），以及 `10 * log10(power + eps)`。Whisper 使用的是更复杂的 clip + normalize 流程（见 Whisper 的 `log_mel_spectrogram`）。
 
-### Step 6: MFCCs
+### 第 6 步：计算 MFCCs
 
 ```python
 def dct_ii(x, n_coeffs):
@@ -113,58 +113,58 @@ def dct_ii(x, n_coeffs):
     ]
 ```
 
-Apply DCT to each log-mel frame, keep the first 13 coefficients. That is your MFCC matrix. The first coefficient is usually dropped (it encodes overall energy).
+对每一帧 log-mel 应用 DCT，并保留前 13 个系数，这就构成了 MFCC 矩阵。第一个系数通常会被丢弃，因为它编码的是整体能量。
 
-## Use It
+## 如何使用
 
-The 2026 stack:
+2026 年的常见配置如下：
 
-| Task | Features |
+| 任务 | 特征 |
 |------|----------|
-| ASR (Whisper, Parakeet, SeamlessM4T) | 80 log-mels, 10 ms hop, 25 ms window |
-| TTS acoustic model (VITS, F5-TTS, Kokoro) | 80 mels, 5–12 ms hop for fine temporal control |
-| Audio classification (AST, PANNs, BEATs) | 128 log-mels, 10 ms hop |
-| Speaker embedding (ECAPA-TDNN, WavLM) | 80 log-mels or raw-waveform SSL |
-| Music (MusicGen, Stable Audio 2) | EnCodec discrete tokens (not mels) |
-| Keyword spotting | 40 MFCCs for tiny devices |
+| ASR (Whisper, Parakeet, SeamlessM4T) | 80 个 log-mels，10 ms hop，25 ms window |
+| TTS 声学模型 (VITS, F5-TTS, Kokoro) | 80 个 mels，5–12 ms hop，用于更细的时间控制 |
+| 音频分类 (AST, PANNs, BEATs) | 128 个 log-mels，10 ms hop |
+| 说话人嵌入 (ECAPA-TDNN, WavLM) | 80 个 log-mels 或原始波形 SSL |
+| 音乐 (MusicGen, Stable Audio 2) | EnCodec 离散 tokens（不是 mels） |
+| 关键词检测 | 面向小设备的 40 MFCCs |
 
-Rule of thumb: **if you are not working on music, start with 80 log-mels.** The burden of proof is on any deviation.
+经验法则：**如果你做的不是音乐任务，就先从 80 个 log-mels 开始。** 任何偏离这个默认值的选择，都应该拿出证据来证明合理性。
 
-## Pitfalls that still ship in 2026
+## 到了 2026 年仍然常见的坑
 
-- **Mel count mismatch.** Training with 80 mels, inference with 128 mels. Silent failure. Log the feature shape at both ends.
-- **Sample-rate mismatch upstream.** Mels computed at 22.05 kHz look different from 16 kHz. Fix SR *before* featurization.
-- **dB vs log.** Whisper expects log-mel, not dB-mel. Some HF pipelines autodetect; your custom code will not.
-- **Normalization drift.** Per-utterance normalization during training, global normalization during inference. Production bug that doubles WER.
-- **Leakage from padding.** Zero-padding the end of a clip produces a flat spectrum in the trailing frames. Pad symmetrically or replicate.
+- **Mel 数量不匹配。** 训练时用 80 mels，推理时却用 128 mels。通常不会直接报错，而是静默失败。要在两端都记录特征形状。
+- **上游采样率不匹配。** 在 22.05 kHz 下计算出的 mels，与 16 kHz 下的结果并不一样。必须在特征提取 *之前* 先固定 SR。
+- **dB 和 log 混用。** Whisper 需要的是 log-mel，不是 dB-mel。有些 HF pipelines 会自动识别，但你自己的自定义代码不会。
+- **归一化漂移。** 训练时做逐话语归一化，推理时却做全局归一化。这类生产问题可能会让 WER 直接翻倍。
+- **padding 引入泄漏。** 在音频末尾补零，会让尾部几帧出现平坦频谱。更稳妥的做法是对称填充，或者复制边界内容。
 
-## Ship It
+## 交付
 
-Save as `outputs/skill-feature-extractor.md`. The skill picks feature type, mel count, frame/hop, and normalization for a given model target.
+将结果保存为 `outputs/skill-feature-extractor.md`。这个技能会根据目标模型，选择合适的特征类型、mel 数量、frame/hop 和归一化方式。
 
-## Exercises
+## 练习
 
-1. **Easy.** Run `code/main.py`. It synthesizes a chirp (frequency swept 200 → 4000 Hz) and prints the argmax mel bin per frame. Plot (optional) and confirm it matches the sweep.
-2. **Medium.** Re-run with `n_mels` in `{40, 80, 128}` and `frame_len` in `{200, 400, 800}`. Measure sharp-peak bandwidth across the time axis. Which combo resolves the chirp the best?
-3. **Hard.** Implement `power_to_db` and compare ASR accuracy of a tiny CNN classifier on AudioMNIST using (a) raw log-mel, (b) dB-mel with `ref=max`, (c) MFCC-13 + delta + delta-delta. Report top-1 accuracy.
+1. **简单。** 运行 `code/main.py`。它会合成一个啁啾信号 (chirp)（频率从 200 Hz 扫到 4000 Hz），并打印每一帧中 argmax 对应的 mel bin。你可以选择绘图，并确认结果与扫频过程一致。
+2. **中等。** 将 `n_mels` 分别设为 `{40, 80, 128}`，再把 `frame_len` 分别设为 `{200, 400, 800}` 重新运行。测量时间轴上尖峰带宽的变化。哪种组合对啁啾信号的分辨效果最好？
+3. **困难。** 实现 `power_to_db`，然后在 AudioMNIST 上训练一个小型 CNN 分类器，比较以下输入的 ASR 准确率：(a) 原始 log-mel，(b) 设置 `ref=max` 的 dB-mel，(c) MFCC-13 + delta + delta-delta。报告 top-1 准确率。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们常怎么说 | 实际含义 |
 |------|-----------------|-----------------------|
-| Frame | A slice | 25 ms chunk of waveform fed to one FFT. |
-| Hop | Stride | Samples between consecutive frames; 10 ms is ASR default. |
-| Window | Hann/Hamming thing | Point-wise multiplier that tapers the frame edges to zero. |
-| STFT | Spectrogram generator | Framed + windowed FFT; yields time × frequency matrix. |
-| Mel | Warped frequency | Log-perception scale; `m = 2595·log10(1 + f/700)`. |
-| Filterbank | The matrix | Triangular filters that project STFT onto mel bins. |
-| Log-mel | Whisper's input | `log(mel_spec + eps)`; standardized in 2026. |
-| MFCC | Old-school feature | DCT of log-mel; 13 coeffs, decorrelated. |
+| Frame | 一小段 | 输入到一次 FFT 的 25 ms 波形片段。 |
+| Hop | 步长 | 相邻帧之间的采样点间隔；10 ms 是 ASR 默认值。 |
+| Window | Hann/Hamming 那个东西 | 逐点相乘的权重函数，用来把帧边缘逐渐压到零。 |
+| STFT | 频谱图生成器 | 对分帧并加窗后的信号做 FFT，得到时间 × 频率矩阵。 |
+| Mel | 扭曲后的频率 | 符合对数感知的尺度；`m = 2595·log10(1 + f/700)`。 |
+| Filterbank | 那个矩阵 | 将 STFT 投影到 mel bins 上的三角滤波器组。 |
+| Log-mel | Whisper 的输入 | `log(mel_spec + eps)`；到 2026 年已基本标准化。 |
+| MFCC | 老派特征 | 对 log-mel 做 DCT；13 个系数，且彼此去相关。 |
 
-## Further Reading
+## 延伸阅读
 
-- [Davis, Mermelstein (1980). Comparison of parametric representations for monosyllabic word recognition](https://ieeexplore.ieee.org/document/1163420) — the MFCC paper.
-- [Stevens, Volkmann, Newman (1937). A Scale for the Measurement of the Psychological Magnitude Pitch](https://pubs.aip.org/asa/jasa/article-abstract/8/3/185/735757/) — the original mel scale.
-- [OpenAI — Whisper source, log_mel_spectrogram](https://github.com/openai/whisper/blob/main/whisper/audio.py) — read the reference implementation.
-- [librosa feature extraction docs](https://librosa.org/doc/main/feature.html) — reference for `mfcc`, `melspectrogram`, and hop/window.
-- [NVIDIA NeMo — audio preprocessing](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_all.html#featurizers) — production-scale pipeline for Parakeet + Canary models.
+- [Davis, Mermelstein (1980). Comparison of parametric representations for monosyllabic word recognition](https://ieeexplore.ieee.org/document/1163420) — MFCC 论文。
+- [Stevens, Volkmann, Newman (1937). A Scale for the Measurement of the Psychological Magnitude Pitch](https://pubs.aip.org/asa/jasa/article-abstract/8/3/185/735757/) — 最早的 mel scale 论文。
+- [OpenAI — Whisper source, log_mel_spectrogram](https://github.com/openai/whisper/blob/main/whisper/audio.py) — 建议直接阅读参考实现。
+- [librosa feature extraction docs](https://librosa.org/doc/main/feature.html) — `mfcc`、`melspectrogram` 以及 hop/window 的参考文档。
+- [NVIDIA NeMo — audio preprocessing](https://docs.nvidia.com/deeplearning/nemo/user-guide/docs/en/main/asr/asr_all.html#featurizers) — 适用于 Parakeet 和 Canary 模型的生产级流水线参考。

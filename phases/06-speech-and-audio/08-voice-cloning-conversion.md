@@ -1,65 +1,65 @@
-# Voice Cloning & Voice Conversion
+# 语音克隆 (Voice Cloning) 与语音转换 (Voice Conversion)
 
-> Voice cloning reads your text in someone else's voice. Voice conversion rewrites your voice into someone else's while preserving what you said. Both hang on the same decomposition: separate speaker identity from content.
+> 语音克隆会用别人的声音朗读你的文本。语音转换则会在保留你说话内容的前提下，把你的声音改写成另一个人的声音。两者都依赖同一个核心分解：把说话人身份与内容分开。
 
-**Type:** Build
-**Languages:** Python
-**Prerequisites:** Phase 6 · 06 (Speaker Recognition), Phase 6 · 07 (TTS)
-**Time:** ~75 minutes
+**类型：** 构建
+**语言：** Python
+**前置条件：** 第 6 阶段 · 06（说话人识别），第 6 阶段 · 07（TTS）
+**时长：** ~75 分钟
 
-## The Problem
+## 问题
 
-In 2026, a 5-second audio clip is enough to produce a high-quality clone of anyone's voice with a consumer GPU. ElevenLabs, F5-TTS, OpenVoice v2, VoiceBox all ship zero-shot or few-shot cloning. The technology is a blessing (accessibility TTS, dubbing, assistive voices) and a weapon (scam calls, political deepfakes, IP theft).
+到了 2026 年，只要一段 5 秒音频，再加上一块消费级 GPU，就足以克隆出任何人的高质量声音。ElevenLabs、F5-TTS、OpenVoice v2、VoiceBox 都已经支持零样本 (zero-shot) 或少样本 (few-shot) 克隆。这项技术既是福音（无障碍 TTS、配音、辅助语音），也是武器（诈骗电话、政治深度伪造 (deepfake)、知识产权盗用）。
 
-Two closely-related tasks:
+这里有两个高度相关的任务：
 
-- **Voice cloning (TTS-side):** text + 5-second reference voice → audio in that voice.
-- **Voice conversion (speech-side):** source audio (person A saying X) + reference voice of person B → audio of B saying X.
+- **语音克隆（TTS 侧）：** 文本 + 5 秒参考音色 → 输出该音色的语音。
+- **语音转换（语音侧）：** 源音频（A 说 X）+ B 的参考音色 → 输出 B 说 X 的语音。
 
-Both factor a waveform into (content, speaker, prosody) and recombine content from one source with speaker from another.
+它们都会把波形拆分为（内容、说话人、韵律 (prosody)），然后将一个来源的内容与另一个来源的说话人信息重新组合。
 
-Key constraint you now ship under in 2026: **watermarking and consent gates are legally required in the EU (AI Act, enforceable August 2026) and in California (AB 2905, effective 2025)**. Your pipeline must emit an inaudible watermark and refuse non-consensual clones.
+你在 2026 年必须面对的关键约束是：**在欧盟（AI Act，自 2026 年 8 月起可执行）和加州（AB 2905，自 2025 年起生效），水印 (watermarking) 与同意门禁 (consent gate) 都是法律要求。** 你的流水线必须输出不可听见的水印，并拒绝未经同意的克隆请求。
 
-## The Concept
+## 概念
 
-*Voice cloning vs conversion: factorize, swap speaker, recombine*
+*语音克隆与语音转换：分解、替换说话人、重新组合*
 
-**Zero-shot cloning.** Pass a 5-second clip to a model that has been trained on thousands of speakers. The speaker encoder maps the clip to a speaker embedding; the TTS decoder conditions on that embedding plus text.
+**零样本克隆 (Zero-shot cloning)。** 将一段 5 秒音频送入一个在数千名说话人上训练过的模型。说话人编码器 (speaker encoder) 会把这段音频映射为说话人嵌入 (speaker embedding)，而 TTS 解码器则基于该嵌入和文本共同生成语音。
 
-Used by: F5-TTS (2024), YourTTS (2022), XTTS v2 (2024), OpenVoice v2 (2024).
+代表模型有：F5-TTS（2024）、YourTTS（2022）、XTTS v2（2024）、OpenVoice v2（2024）。
 
-**Few-shot fine-tuning.** Record 5-30 minutes of the target voice. LoRA-fine-tune a base model for an hour. Quality leaps from "okay" to "indistinguishable". Coqui and ElevenLabs both support this pattern; community uses it with F5-TTS.
+**少样本微调 (Few-shot fine-tuning)。** 录制目标说话人 5–30 分钟的语音，用 LoRA 在基础模型上微调一小时，质量就可能从“还行”跃升到“几乎无法区分”。Coqui 和 ElevenLabs 都支持这种模式，社区也常把它用于 F5-TTS。
 
-**Voice conversion (VC).** Two families:
+**语音转换（VC）。** 主要有两大路线：
 
-- **Recognition-synthesis.** Run ASR-like model to extract content representation (e.g., soft phoneme posteriors, PPGs), then resynthesize with target speaker embedding. Robust to language and accent. Used by KNN-VC (2023), Diff-HierVC (2023).
-- **Disentanglement.** Train an autoencoder that separates content, speaker, and prosody in latent space at the bottleneck. Swap speaker embedding at inference. Lower quality but faster. Used by AutoVC (2019), VITS-VC variants.
+- **识别-合成 (Recognition-synthesis)。** 先运行类似 ASR 的模型，提取内容表示（例如 soft phoneme posteriors、PPGs），再结合目标说话人嵌入重新合成。它对语言和口音更稳健。代表方法有 KNN-VC（2023）、Diff-HierVC（2023）。
+- **解耦 (Disentanglement)。** 训练一个自编码器，在瓶颈层的潜空间中把内容、说话人和韵律拆开。推理时替换说话人嵌入。质量通常略低，但速度更快。代表方法有 AutoVC（2019）和各类 VITS-VC 变体。
 
-**Neural codec-based cloning (2024+).** VALL-E, VALL-E 2, NaturalSpeech 3, VoiceBox — treat audio as discrete tokens from SoundStream / EnCodec, train a large autoregressive or flow-matching model over codec tokens. Quality comparable to ElevenLabs on short prompts.
+**基于神经 codec 的克隆 (Neural codec-based cloning, 2024+)。** VALL-E、VALL-E 2、NaturalSpeech 3、VoiceBox 会把音频视为来自 SoundStream / EnCodec 的离散 tokens，并在这些 codec tokens 上训练大型自回归或 flow-matching 模型。对短提示词来说，质量已可与 ElevenLabs 相当。
 
-### The ethics bit, not a bolt-on
+### 伦理不是附加项
 
-**Watermarking.** PerTh (Perth) and SilentCipher (2024) embed a ~16-32 bit ID imperceptibly in the audio. Survives re-encoding, streaming, and common edits. Production-ready open source.
+**水印。** PerTh（Perth）和 SilentCipher（2024）可以在音频中嵌入约 16–32 bit、几乎不可察觉的 ID。即使经过重新编码、流式传输和常见编辑后，仍然能被检测到。并且已有可用于生产的开源实现。
 
-**Consent gates.** Must pair every cloned output with a verifiable consent record. "I, Rohit, on 2026-04-22, authorize this voice for X purpose." Store in a tamper-evident log.
+**同意门禁。** 每一段克隆输出都必须绑定一条可验证的授权记录，例如：“我，Rohit，于 2026-04-22 授权此声音用于 X 用途。” 这些记录应保存在防篡改日志中。
 
-**Detection.** AASIST, RawNet2, and Wav2Vec2-AASIST ship as detectors. ASVspoof 2025 challenge published EERs of 0.8–2.3% for state-of-the-art detectors against ElevenLabs, VALL-E 2, and Bark outputs.
+**检测。** AASIST、RawNet2 和 Wav2Vec2-AASIST 都可以作为检测器使用。ASVspoof 2025 challenge 公布的结果显示，面对 ElevenLabs、VALL-E 2 和 Bark 生成的语音，最先进检测器的 EER 在 0.8–2.3% 之间。
 
-### Numbers (2026)
+### 数据指标（2026）
 
-| Model | Zero-shot? | SECS (target sim) | WER (intel.) | Params |
+| 模型 | 支持 Zero-shot？ | SECS（目标相似度） | WER（可懂度） | 参数量 |
 |-------|-----------|--------------------|--------------|--------|
-| F5-TTS | Yes | 0.72 | 2.1% | 335M |
-| XTTS v2 | Yes | 0.65 | 3.5% | 470M |
-| OpenVoice v2 | Yes | 0.70 | 2.8% | 220M |
-| VALL-E 2 | Yes | 0.77 | 2.4% | 370M |
-| VoiceBox | Yes | 0.78 | 2.1% | 330M |
+| F5-TTS | 是 | 0.72 | 2.1% | 335M |
+| XTTS v2 | 是 | 0.65 | 3.5% | 470M |
+| OpenVoice v2 | 是 | 0.70 | 2.8% | 220M |
+| VALL-E 2 | 是 | 0.77 | 2.4% | 370M |
+| VoiceBox | 是 | 0.78 | 2.1% | 330M |
 
-SECS > 0.70 is generally indistinguishable from the target for most listeners.
+通常来说，SECS > 0.70 时，大多数听众已经很难把它和目标音色区分开。
 
-## Build It
+## 动手构建
 
-### Step 1: decompose with recognition-synthesis (code-only demo in main.py)
+### 第 1 步：用识别-合成路线做分解（`main.py` 中只有代码演示）
 
 ```python
 def clone_pipeline(ref_audio, text, target_embedder, tts_model):
@@ -68,9 +68,9 @@ def clone_pipeline(ref_audio, text, target_embedder, tts_model):
     return vocoder(mel)
 ```
 
-Conceptually simple; implementation mass is in `tts_model` and speaker encoder.
+概念上很简单；真正复杂的实现主要集中在 `tts_model` 和说话人编码器上。
 
-### Step 2: zero-shot clone with F5-TTS
+### 第 2 步：用 F5-TTS 做零样本克隆
 
 ```python
 from f5_tts.api import F5TTS
@@ -82,9 +82,9 @@ wav = tts.infer(
 )
 ```
 
-Reference transcript must exactly match the audio; mismatch breaks alignment.
+参考转录文本必须与音频完全一致，连标点都要对上；否则对齐会出问题。
 
-### Step 3: voice conversion with KNN-VC
+### 第 3 步：用 KNN-VC 做语音转换
 
 ```python
 import torch
@@ -93,9 +93,9 @@ vc = KNNVC.load("wavlm-base-plus")
 out_wav = vc.convert(source="my_voice.wav", target_pool=["alice_1.wav", "alice_2.wav"])
 ```
 
-KNN-VC runs WavLM to extract per-frame embeddings for source and target pool, then replaces each source frame with its nearest neighbor in the pool. Non-parametric, works with a minute of target speech.
+KNN-VC 会运行 WavLM，为源语音和目标语音池提取逐帧嵌入，然后把每个源帧替换成目标池中最近邻的帧。它是非参数方法，用一分钟左右的目标语音就能工作。
 
-### Step 4: embed a watermark
+### 第 4 步：嵌入水印
 
 ```python
 from silentcipher import SilentCipher
@@ -105,9 +105,9 @@ watermarked = sc.embed(wav, sr=24000, message=payload)
 detected = sc.detect(watermarked, sr=24000)   # returns payload bytes
 ```
 
-~32 bits of payload, detectable after MP3 re-encode and light noise.
+大约可嵌入 32 bit 的载荷 (payload)，即使经过 MP3 重新编码和轻微噪声干扰后仍能检测出来。
 
-### Step 5: consent gate
+### 第 5 步：加入同意门禁
 
 ```python
 def cloned_inference(text, ref_audio, consent_record):
@@ -118,54 +118,54 @@ def cloned_inference(text, ref_audio, consent_record):
     return wav
 ```
 
-## Use It
+## 如何使用
 
-The 2026 stack:
+2026 年的常见选型如下：
 
-| Situation | Pick |
+| 场景 | 选择 |
 |-----------|------|
-| 5-sec zero-shot clone, open-source | F5-TTS or OpenVoice v2 |
-| Commercial production cloning | ElevenLabs Instant Voice Clone v2.5 |
-| Voice conversion (rewriting) | KNN-VC or Diff-HierVC |
-| Many-speaker fine-tune | StyleTTS 2 + speaker adapter |
-| Cross-lingual cloning | XTTS v2 or VALL-E X |
-| Deepfake detection | Wav2Vec2-AASIST |
+| 5 秒 zero-shot 开源克隆 | F5-TTS 或 OpenVoice v2 |
+| 商业级生产克隆 | ElevenLabs Instant Voice Clone v2.5 |
+| 语音转换（重写音色） | KNN-VC 或 Diff-HierVC |
+| 多说话人微调 | StyleTTS 2 + speaker adapter |
+| 跨语言克隆 | XTTS v2 或 VALL-E X |
+| Deepfake 检测 | Wav2Vec2-AASIST |
 
-## Pitfalls
+## 常见陷阱
 
-- **Misaligned reference transcript.** F5-TTS and similar require the reference text to match the reference audio exactly, punctuation included.
-- **Reverberant reference.** Echo kills the clone. Record dry, close-mic.
-- **Emotional mismatch.** Training reference "cheerful" produces cheerful clones of everything. Match reference emotion to target use.
-- **Language leakage.** Cloning an English speaker then asking the model to speak French often carries the accent anyway; use cross-lingual models (XTTS, VALL-E X).
-- **No watermark.** Legally unshippable in EU from Aug 2026.
+- **参考转录未对齐。** F5-TTS 及类似模型要求参考文本与参考音频逐字匹配，连标点都不能差。
+- **参考音频混响过重。** 回声会严重破坏克隆效果。应尽量在干声、近讲麦环境下录制。
+- **情绪不匹配。** 如果训练参考音频是“欢快”的，模型往往会把所有输出都克隆成欢快语气。参考情绪应匹配目标用途。
+- **语言泄漏。** 克隆一个英语说话人后再让模型讲法语，通常还是会带着原口音；这时应使用跨语言模型（XTTS、VALL-E X）。
+- **没有水印。** 从 2026 年 8 月开始，这在欧盟已无法合法上线。
 
-## Ship It
+## 交付
 
-Save as `outputs/skill-voice-cloner.md`. Design a cloning or conversion pipeline with consent gate + watermark + quality target.
+将结果保存为 `outputs/skill-voice-cloner.md`。设计一个带有同意门禁 + 水印 + 质量目标的克隆或转换流水线。
 
-## Exercises
+## 练习
 
-1. **Easy.** Run `code/main.py`. Demonstrates the speaker-embedding swap by computing the cosine between two "speakers" pre and post swap.
-2. **Medium.** Use OpenVoice v2 to clone your own voice. Measure SECS between reference and clone. Measure CER via Whisper.
-3. **Hard.** Apply SilentCipher watermark to 20 clones, run them through 128 kbps MP3 encode+decode, detect the payload. Report bit-accuracy.
+1. **简单。** 运行 `code/main.py`。它会通过计算交换前后两个“说话人”之间的余弦相似度，演示说话人嵌入替换的效果。
+2. **中等。** 用 OpenVoice v2 克隆你自己的声音。测量参考音频与克隆音频之间的 SECS，再用 Whisper 测量 CER。
+3. **困难。** 对 20 段克隆语音加入 SilentCipher 水印，然后进行 128 kbps MP3 编码+解码，再检测载荷。报告比特准确率。
 
-## Key Terms
+## 关键术语
 
-| Term | What people say | What it actually means |
+| 术语 | 人们常怎么说 | 实际含义 |
 |------|-----------------|-----------------------|
-| Zero-shot clone | 5 seconds is enough | Pretrained model + speaker embedding; no training. |
-| PPG | Phonetic posteriorgram | Per-frame ASR posteriors used as language-agnostic content rep. |
-| KNN-VC | Nearest-neighbor conversion | Replace each source frame with nearest target-pool frame. |
-| Neural codec TTS | VALL-E style | AR model over EnCodec/SoundStream tokens. |
-| Watermark | Inaudible signature | Bits embedded in audio, survive re-encode. |
-| SECS | Cloning fidelity | Cosine between target and clone speaker embeddings. |
-| AASIST | Deepfake detector | Anti-spoof model; detects synthesized speech. |
+| Zero-shot clone | 5 秒就够了 | 预训练模型 + speaker embedding；无需额外训练。 |
+| PPG | 音素后验图 | 逐帧 ASR 后验概率，可作为与语言无关的内容表示。 |
+| KNN-VC | 最近邻转换 | 将每个源帧替换为目标语音池中最近的帧。 |
+| Neural codec TTS | VALL-E 那一路 | 在 EnCodec/SoundStream tokens 上训练的 AR 模型。 |
+| Watermark | 听不见的签名 | 嵌入到音频中的 bit，重新编码后仍能保留。 |
+| SECS | 克隆保真度 | 目标说话人与克隆语音的 speaker embeddings 余弦相似度。 |
+| AASIST | Deepfake 检测器 | 一种 anti-spoof 模型，用于检测合成语音。 |
 
-## Further Reading
+## 延伸阅读
 
-- [Chen et al. (2024). F5-TTS](https://arxiv.org/abs/2410.06885) — open-source SOTA zero-shot cloning.
-- [Baevski et al. / Microsoft (2023). VALL-E](https://arxiv.org/abs/2301.02111) and [VALL-E 2 (2024)](https://arxiv.org/abs/2406.05370) — neural-codec TTS.
-- [Qian et al. (2019). AutoVC](https://arxiv.org/abs/1905.05879) — disentanglement-based voice conversion.
-- [Baas, Waubert de Puiseau, Kamper (2023). KNN-VC](https://arxiv.org/abs/2305.18975) — retrieval-based VC.
-- [SilentCipher (2024) — Audio Watermarking](https://github.com/sony/silentcipher) — production-ready 32-bit audio watermark.
-- [ASVspoof 2025 results](https://www.asvspoof.org/) — detector vs synthesizer arms race, updated 2026.
+- [Chen et al. (2024). F5-TTS](https://arxiv.org/abs/2410.06885) — 开源 SOTA zero-shot 克隆模型。
+- [Baevski et al. / Microsoft (2023). VALL-E](https://arxiv.org/abs/2301.02111) and [VALL-E 2 (2024)](https://arxiv.org/abs/2406.05370) — 基于 neural codec 的 TTS。
+- [Qian et al. (2019). AutoVC](https://arxiv.org/abs/1905.05879) — 基于 disentanglement 的语音转换。
+- [Baas, Waubert de Puiseau, Kamper (2023). KNN-VC](https://arxiv.org/abs/2305.18975) — 基于检索的 VC。
+- [SilentCipher (2024) — Audio Watermarking](https://github.com/sony/silentcipher) — 可用于生产的 32-bit 音频水印方案。
+- [ASVspoof 2025 results](https://www.asvspoof.org/) — 检测器与合成器军备竞赛，更新至 2026 年。
